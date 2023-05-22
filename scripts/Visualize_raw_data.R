@@ -1,7 +1,21 @@
+#' ---
+#'  title: "Visualize intrasepecific trait variation measurements"
+#'  author: "Chieh"
+#'  output: "html_document"
+#' ---
+
 #+ Read library, include = FALSE
 library(tidyverse)
 library(ggplot2)
 library(ggpubr)
+library(viridis)
+library(hrbrthemes)
+
+#' This document aims to show trait variation within a seagrass species.
+#'The raw data were obtained from 12 distinct locations in Queensland, Australia. The measurements primarily took place within a controlled wet laboratory environment, employing appropriate scientific instruments. However, a subset of finer-scale measurements, typically measuring less than 5 mm, were conducted digitally using the ImageJ software on a computer
+#'
+#' To illustrate the distribution of the traits, two graphical methods were employed: box plots and histograms. The box plots were utilized to depict the shoot number per core and the Belowground/Aboveground ratio. On the other hand, histograms were employed to display the distribution of six additional traits, namely Leaf Length, Leaf Width, Canopy Height, Root Length, Rhizome Diameter, and Internode Distance.
+#' 
 
 #' Read trait measured data and rearanging it to plotting format.
 
@@ -23,7 +37,7 @@ head(trait_long_dat)
 
 #' plot the potential intraspecific trait variation of each species.
 
-#+ Plotting, echo = FALSE, warning = FALSE
+#+ Plotting function for all species, echo = FALSE, warning = FALSE
 HU <- trait_long_dat[trait_long_dat$abb=="HUN"|trait_long_dat$abb=="HUW", ]
 HO <- trait_long_dat[trait_long_dat$abb=="HO", ]
 ZC <- trait_long_dat[trait_long_dat$abb=="ZC", ]
@@ -31,11 +45,11 @@ CS <- trait_long_dat[trait_long_dat$abb=="CS", ]
 HS <- trait_long_dat[trait_long_dat$abb=="HS", ]
 TH <- trait_long_dat[trait_long_dat$abb=="TH", ]
 
-trait_plot = function(sp){
+trait_plot = function(sp, LHbin, LWbin, CHbin, RLbin, RDbin, ILbin){
   SN = ggplot(data = sp) +
     geom_boxplot(aes(y = Shoot_number), width = 0.7) +
     xlim(-1, 1) +
-    ylab("Shoot number per core") +
+    ylab("Shoot #/core") +
     xlab("") +
     scale_x_continuous(labels = NULL, breaks = NULL) +
     theme(legend.position = "none")
@@ -55,27 +69,33 @@ trait_plot = function(sp){
     theme(legend.position = "none")
   
   LH = ggplot(data = sp) +
-    geom_histogram(aes(x = Leaflength), alpha = 0.5) +
+    geom_histogram(aes(x = Leaflength), 
+                   binwidth = LHbin, alpha = 0.5) +
     labs(x = "Leaf length (mm)")
   
   LW = ggplot(data = sp) +
-    geom_histogram(aes(x = Leafwidth), alpha = 0.5) +
+    geom_histogram(aes(x = Leafwidth), 
+                   binwidth = LWbin, alpha = 0.5) +
     labs(x = "Leaf width (mm)")
   
   CH = ggplot(data = sp) +
-    geom_histogram(aes(x = Canopyheight), alpha = 0.5) +
+    geom_histogram(aes(x = Canopyheight), 
+                   binwidth = CHbin, alpha = 0.5) +
     labs(x = "Canopy height (mm)")
   
   RL = ggplot(data = sp) +
-    geom_histogram(aes(x = Rootlength), alpha = 0.5) +
+    geom_histogram(aes(x = Rootlength), 
+                   binwidth = RLbin, alpha = 0.5) +
     labs(x = "Root length (mm)")
   
   RD = ggplot(data = sp) +
-    geom_histogram(aes(x = Rhizomediameter), alpha = 0.5) +
+    geom_histogram(aes(x = Rhizomediameter),
+                   binwidth = RDbin, alpha = 0.5) +
     labs(x = "Rhizome diameter (mm)")
   
   IL = ggplot(data = sp) +
-    geom_histogram(aes(x = Internodelength), alpha = 0.5) +
+    geom_histogram(aes(x = Internodelength),
+                   binwidth = ILbin, alpha = 0.5) +
     labs(x = "Internode length (mm)")
   
   p_all = ggarrange(SN, DM, LH, LW, CH, RL, RD, IL,
@@ -86,24 +106,133 @@ trait_plot = function(sp){
 
 #' Holudule uninervis traits
 #+ HU, warning = FALSE, message = FALSE
-trait_plot(HU)
+trait_plot(HU, 4, 0.05, 4, 4, 0.04, 1)
 
 #' Halophila ovalis traits
 #+ HO, warning = FALSE, message = FALSE
-trait_plot(HO)
+trait_plot(HO, 0.5, 0.15, 0.75, 2, 0.02, 1)
 
 #' Zostera muelleri subsp. Capricorni traits
 #+ ZC, warning = FALSE, message = FALSE
-trait_plot(ZC)
+trait_plot(ZC, 4, 0.2, 4, 3, 0.02, 0.5)
 
 #' Cymodocea serrulata traits
 #+ CS, warning = FALSE, message = FALSE
-trait_plot(CS)
+trait_plot(CS, 3, 0.1, 3, 3, 0.02, 1.2)
 
 #' Halophila spinulosa traits
 #+ HS, warning = FALSE, message = FALSE
-trait_plot(HS)
+trait_plot(HS, 0.25, 0.025, 2, 1.5, 0.02, 0.5)
 
 #' Thalassia hemprichii traits
 #+ TH, warning = FALSE, message = FALSE
-trait_plot(TH)
+trait_plot(TH, 1.5, 0.08, 1.5, 1, 0.05, 0.7)
+
+#+ Plotting function for HUN vs HUW, echo = FALSE, warning = FALSE
+trait_plot_HU = function(sp){
+  SN = ggplot(data = sp) +
+    geom_boxplot(aes(x = abb, y = Shoot_number, fill = abb), width = 0.7) +
+    ylab("Shoot #/core") +
+    xlab("") +
+    theme(legend.position = "none")
+  
+  sp %>% 
+    mutate(MAB = rowMeans(cbind(Aboveground_dry_mass1, Aboveground_dry_mass2)),
+           MBB = rowMeans(cbind(Belowground_dry_mass1, Belowground_dry_mass2))) %>%
+    pivot_longer(cols = c(MAB, MBB), names_to = "DryM", values_to = "Weight")-> sp_DM
+  
+  DM = ggplot(data = sp_DM) +
+    geom_boxplot(aes(x = DryM, y = Weight, fill = abb)) +
+    ylab("Dry weight (mg)") +
+    xlab("") +
+    scale_x_discrete(labels = c("Aboveground", "Belowground")) +
+    theme(legend.position = "none")
+  
+  LH = ggplot(data = sp) +
+    geom_histogram(aes(x = Leaflength, fill = abb),
+                   binwidth = 4, alpha = 0.5) +
+    labs(x = "Leaf length (mm)")
+  
+  LW = ggplot(data = sp) +
+    geom_histogram(aes(x = Leafwidth, fill = abb),
+                   binwidth = 0.05, alpha = 0.5) +
+    labs(x = "Leaf width (mm)")
+  
+  CH = ggplot(data = sp) +
+    geom_histogram(aes(x = Canopyheight,fill = abb),
+                   binwidth = 4, alpha = 0.5) +
+    labs(x = "Canopy height (mm)")
+  
+  RL = ggplot(data = sp) +
+    geom_histogram(aes(x = Rootlength, fill = abb), 
+                   binwidth = 4, alpha = 0.5) +
+    labs(x = "Root length (mm)")
+  
+  RD = ggplot(data = sp) +
+    geom_histogram(aes(x = Rhizomediameter, fill = abb), 
+                   binwidth = 0.04, alpha = 0.5) +
+    labs(x = "Rhizome diameter (mm)")
+  
+  IL = ggplot(data = sp) +
+    geom_histogram(aes(x = Internodelength, fill = abb), 
+                   binwidth = 1, alpha = 0.5) +
+    labs(x = "Internode length (mm)")
+  
+  p_all = ggarrange(SN, DM, LH, LW, CH, RL, RD, IL,
+                    ncol = 2, nrow = 4,
+                    common.legend = TRUE, legend = "none")
+  return(p_all)
+}
+
+#' Trait of narrow versus wide form of Haludule uninervis
+#+ HUN vs HUW, warning = FALSE, message = FALSE, echo = FALSE
+trait_plot_HU(HU)
+#' The clear difference is at Leaf width. The rhizome diameter is also quite distinct for two form but with a overlap zone.
+#' Leaf width indicates there might be three groups instead of two.
+
+#' Location specific leaf width of HUN and HUW. These graph indicate potential grouops in HU.
+#+ HU Location, warning = FALSE, message = FALSE, echo = FALSE
+
+ggplot(data = HU[HU$abb == "HUN", ], aes(x = Location, y = Leafwidth, fill = Location)) +
+  geom_violin(width = 1.4) +
+  geom_boxplot(width = 0.1, color = "grey", alpha = 0.2) +
+  scale_fill_viridis(discrete = TRUE, option = "plasma") +
+  theme_ipsum() +
+  theme(
+    legend.position="none",
+    plot.title = element_text(size=11),
+    axis.text.x=element_text(size = 8, angle=45, hjust=1)
+  ) +
+  ggtitle("HU narrow leaf width at each sample location") +
+  xlab("")
+
+ggplot(data = HU[HU$abb == "HUW", ], aes(x = Location, y = Leafwidth, fill = Location)) +
+  geom_violin(width = 1.4) +
+  geom_boxplot(width = 0.1, color = "grey", alpha = 0.2) +
+  scale_fill_viridis(discrete = TRUE, option = "mako") +
+  theme_ipsum() +
+  theme(
+    legend.position="none",
+    plot.title = element_text(size=11),
+    axis.text.x=element_text(size = 8, angle=45, hjust=1)
+  ) +
+  ggtitle("HU wide leaf width at each sample location") +
+  xlab("")
+
+
+#' HO leaf surface area distribution.
+#+ HO leaf surface area, warning = FALSE, message = FALSE, echo = FALSE
+
+HO %>%
+  mutate(LSA = Leaflength * Leafwidth) %>%
+  ggplot(aes(x = LSA)) +
+  geom_histogram(binwidth = 5) +
+  theme_ipsum() +
+  theme(
+    legend.position="none",
+    plot.title = element_text(size=11)
+  ) +
+  ggtitle("HO leaf surface area distribution") +
+  xlab("Leaf surface area (mm^2)")
+
+#' Tried to see is there any distinct groups of leaf size of HO, because I felt there a big leaf individuals and small leaf ones. However, it seems to be a continous distibution. 
