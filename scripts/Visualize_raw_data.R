@@ -27,7 +27,7 @@ library(plotly)
 
 
 #' # Data
-#' Read trait measured data and rearanging it to plotting format.
+#' Read trait measured data and rearranging it to plotting format.
 
 #+ Read data and Pivot to plotting format, warning = FALSE
 
