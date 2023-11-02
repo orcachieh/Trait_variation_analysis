@@ -1,8 +1,15 @@
 #' ---
 #'  title: "Visualize intrasepecific trait variation measurements"
 #'  author: "Chieh"
-#'  output: "html_document"
+#'  output: 
+#'    html_document:
+#'      toc: true
+#'      toc_float: true
+#'      toc_depth: 3 
+#'      theme: lumen
+#'      highlight: tango
 #' ---
+
 
 #+ Read library, include = FALSE
 library(tidyverse)
@@ -10,6 +17,7 @@ library(ggplot2)
 library(ggpubr)
 library(viridis)
 library(hrbrthemes)
+library(plotly)
 
 #' This document aims to show trait variation within a seagrass species.
 #'The raw data were obtained from 12 distinct locations in Queensland, Australia. The measurements primarily took place within a controlled wet laboratory environment, employing appropriate scientific instruments. However, a subset of finer-scale measurements, typically measuring less than 5 mm, were conducted digitally using the ImageJ software on a computer
@@ -17,6 +25,8 @@ library(hrbrthemes)
 #' To illustrate the distribution of the traits, two graphical methods were employed: box plots and histograms. The box plots were utilized to depict the shoot number per core and the Belowground/Aboveground ratio. On the other hand, histograms were employed to display the distribution of six additional traits, namely Leaf Length, Leaf Width, Canopy Height, Root Length, Rhizome Diameter, and Internode Distance.
 #' 
 
+
+#' # Data
 #' Read trait measured data and rearanging it to plotting format.
 
 #+ Read data and Pivot to plotting format, warning = FALSE
@@ -104,27 +114,29 @@ trait_plot = function(sp, LHbin, LWbin, CHbin, RLbin, RDbin, ILbin){
   return(p_all)
 }
 
-#' Holudule uninervis traits
+#' # Visualize trait distribution
+
+#' ## Holudule uninervis traits
 #+ HU, warning = FALSE, message = FALSE
 trait_plot(HU, 4, 0.05, 4, 4, 0.04, 1)
 
-#' Halophila ovalis traits
+#' ## Halophila ovalis traits
 #+ HO, warning = FALSE, message = FALSE
 trait_plot(HO, 0.5, 0.15, 0.75, 2, 0.02, 1)
 
-#' Zostera muelleri subsp. Capricorni traits
+#' ## Zostera muelleri subsp. Capricorni traits
 #+ ZC, warning = FALSE, message = FALSE
 trait_plot(ZC, 4, 0.2, 4, 3, 0.02, 0.5)
 
-#' Cymodocea serrulata traits
+#' ## Cymodocea serrulata traits
 #+ CS, warning = FALSE, message = FALSE
 trait_plot(CS, 3, 0.1, 3, 3, 0.02, 1.2)
 
-#' Halophila spinulosa traits
+#' ## Halophila spinulosa traits
 #+ HS, warning = FALSE, message = FALSE
 trait_plot(HS, 0.25, 0.025, 2, 1.5, 0.02, 0.5)
 
-#' Thalassia hemprichii traits
+#' ## Thalassia hemprichii traits
 #+ TH, warning = FALSE, message = FALSE
 trait_plot(TH, 1.5, 0.08, 1.5, 1, 0.05, 0.7)
 
@@ -184,13 +196,16 @@ trait_plot_HU = function(sp){
   return(p_all)
 }
 
-#' Trait of narrow versus wide form of Haludule uninervis
+#' # HUN vs HUW
+#' ## Trait of narrow versus wide form of Haludule uninervis
 #+ HUN vs HUW, warning = FALSE, message = FALSE, echo = FALSE
 trait_plot_HU(HU)
 #' The clear difference is at Leaf width. The rhizome diameter is also quite distinct for two form but with a overlap zone.
 #' Leaf width indicates there might be three groups instead of two.
+#' 
 
-#' Location specific leaf width of HUN and HUW. These graph indicate potential grouops in HU.
+#' ## Location specific leaf width of HUN and HUW.
+#' These graph indicate potential groups in HU.
 #+ HU Location, warning = FALSE, message = FALSE, echo = FALSE
 
 ggplot(data = HU[HU$abb == "HUN", ], aes(x = Location, y = Leafwidth, fill = Location)) +
@@ -218,6 +233,38 @@ ggplot(data = HU[HU$abb == "HUW", ], aes(x = Location, y = Leafwidth, fill = Loc
   ) +
   ggtitle("HU wide leaf width at each sample location") +
   xlab("")
+
+ggplot(data = HU, aes(x = Location, y = Leafwidth, fill = Location)) +
+  geom_violin(width = 1.4) +
+  geom_boxplot(width = 0.05, color = "grey", alpha = 0.2) +
+  scale_fill_viridis(discrete = TRUE) +
+  theme_ipsum() +
+  theme(
+    legend.position="none",
+    plot.title = element_text(size=11),
+    axis.text.x=element_text(size = 8, angle=45, hjust=1)
+  ) +
+  ggtitle("HU leaf width at each sample location") +
+  xlab("")
+
+#' Plot HU trait along the latitude gradient
+#+ HU latitude gradient, warning = FALSE, message = FALSE, echo = FALSE
+
+ggplot(data = HU, aes(x = Latitude, y = Leafwidth)) +
+  geom_point()
+
+ggplot(data = HU, aes(y = Latitude, x = Longitude, size = Leafwidth, color = Leafwidth)) +
+  geom_point()
+
+ggplot(data = HU[HU$abb == "HUN", ], aes(x = Latitude, y = Leafwidth)) +
+  geom_point()
+
+ggplot(data = HU[HU$abb == "HUN", ], aes(x = Longitude, y = Leafwidth)) +
+  geom_point()
+
+plot_ly(data = HU[HU$abb == "HUN", ], 
+        x = ~Longitude, y = ~Latitude, z = ~Leafwidth, 
+        type = "scatter3d", mode = "markers")
 
 
 #' HO leaf surface area distribution.
