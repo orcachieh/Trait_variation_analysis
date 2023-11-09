@@ -44,7 +44,7 @@ loc_point <- st_as_sf(x = loc,
 #' 3. Wave energy (package "waver") is calculated by three component: fetch, dominant wind speed, and depth.
 
 #' Starting with fetch. 
-#' In order to accomplish the problem of some intertidal point are higher than sea level and is "on land" if using normal coastal line, I use the intertidal elevation layer (Intertidal Extents Model 25 m v 2.0.0) from Geoscience Australia and specify shore line as level 7 instead of level 0.This mean the shore line is actually 7 meter elevation (model value) to calculate fetch.
+#' In order to accomplish the problem of some intertidal point are higher than sea level and is "on land" if using normal coastal line, I use the intertidal elevation layer (National Intertidal Digital Elevation Model 25m 1.0.0, Bishop-Taylor et al, 2019) from Geoscience Australia and specify shore line to as close to 0 as possible (the contour line they created does not have exactly 0 m for all the subset map)
 #' Using the consistent method for all sample points should be alright for calculate relative exposure among the sites.
 
 #' Due  to large geographic range. The shore line was separate to following location for easier fetch calculation - 
@@ -55,18 +55,15 @@ loc_point <- st_as_sf(x = loc,
 #' ka: karumba
 #' we: Weipa
 
-# read intertidal elevation layer (Intertidal Extents Model 25 m v 2.0.0)
-t1 <- rast("../Coastal_data/ITEM_REL_24_147.05_-18.95.tif")
-t2 <- rast("../Coastal_data/ITEM_REL_195_146.51_-18.95.tif")
+# read intertidal elevation contour layer (National Intertidal Digital Elevation Model 25m 1.0.0)
+t1 <- vect("../Coastal_data/NIDEM_contours_24_147.05_-18.95.shp")
+t2 <- vect("../Coastal_data/NIDEM_contours_195_146.51_-18.95.shp")
 
-# merge several raster to obtain proper range if required
-merge(t1, t2) -> to
-
-# create contour line from raster file
-as.contour(to) -> toc
+# merge several subset maps to obtain proper range if required
+rbind(t1, t2) -> to
 
 # transfer terra object to sf to compatible with "waver" package
-st_as_sf(toc)-> tosf
+st_as_sf(to)-> tosf
 
 # remove sediment sample
 # project sample points as coastline data, GDA. This process is required for fecth calculation by "waver" package
@@ -74,8 +71,9 @@ loc_point_gda <- st_transform(loc_point, crs(tosf))
 
 # calculate fetch for sample points. 12 fetch lines (360 degree each with 30 degree separation) are calculated for each point.
 # maximum fetch is 20000 m if no coastline present at that angle
+# shoreline is define as the contour line closest to 0 m elevation in each subset map
 
-fetch_len_multi(loc_point_gda[1:47, ], bearing = c(seq(0, 330, 30)), shoreline =tosf[tosf$level == 7,], dmax = 20000) -> to_fetch
+fetch_len_multi(loc_point_gda[1:47, ], bearing = c(seq(0, 330, 30)), shoreline = tosf[tosf$elev_m %in% c(0.04, 0.09) ,], dmax = 20000) -> to_fetch
 
 # Rearrange fetch matrix for geom_spoke plotting
 # There is a bit of work due to angles are seen differently from two function.
@@ -91,7 +89,7 @@ to_fetch %>%
 # plotting fetch and coastline
 
 ggplot() +
-  geom_sf(data = tosf[tosf$level == 7,]) +
+  geom_sf(data = tosf[tosf$elev_m %in% c(0.04, 0.09) ,]) +
   geom_spoke(data = to_spoke, 
              aes(x = X, y = Y, angle = angle, radius = fetch)) +
   geom_sf(data = loc_point_gda[1:47, ], color = "red") +
