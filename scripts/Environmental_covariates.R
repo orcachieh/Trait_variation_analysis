@@ -56,14 +56,23 @@ loc_point <- st_as_sf(x = loc,
 #' we: Weipa
 
 # read intertidal elevation contour layer (National Intertidal Digital Elevation Model 25m 1.0.0)
-t1 <- vect("../Coastal_data/NIDEM_contours_24_147.05_-18.95.shp")
-t2 <- vect("../Coastal_data/NIDEM_contours_195_146.51_-18.95.shp")
+to1 <- vect("../Coastal_data/NIDEM_contours_24_147.05_-18.95.shp")
+to2 <- vect("../Coastal_data/NIDEM_contours_195_146.51_-18.95.shp")
+
+cl1 <- vect("../Coastal_data/NIDEM_contours_191_149.62_-21.95.shp")
+cl2 <- vect("../Coastal_data/NIDEM_contours_143_149.79_-22.14.shp")
+cl3 <- vect("../Coastal_data/NIDEM_contours_234_149.84_-22.32.shp")
+cl4 <- vect("../Coastal_data/NIDEM_contours_39_149.58_-21.77.shp")
+
+
 
 # merge several subset maps to obtain proper range if required
-rbind(t1, t2) -> to
+to <- rbind(to1, to2)
+cl <- rbind(cl1, cl2, cl3, cl4)
 
 # transfer terra object to sf to compatible with "waver" package
-st_as_sf(to)-> tosf
+tosf <- st_as_sf(to)
+clsf <- st_as_sf(cl)
 
 # remove sediment sample
 # project sample points as coastline data, GDA. This process is required for fecth calculation by "waver" package
@@ -73,7 +82,9 @@ loc_point_gda <- st_transform(loc_point, crs(tosf))
 # maximum fetch is 20000 m if no coastline present at that angle
 # shoreline is define as the contour line closest to 0 m elevation in each subset map
 
-fetch_len_multi(loc_point_gda[1:47, ], bearing = c(seq(0, 330, 30)), shoreline = tosf[tosf$elev_m %in% c(0.04, 0.09) ,], dmax = 20000) -> to_fetch
+to_fetch <- fetch_len_multi(loc_point_gda[1:47, ], bearing = c(seq(0, 330, 30)), shoreline = tosf[tosf$elev_m %in% c(0.04, 0.09) ,], dmax = 20000)
+
+cl_fetch <- fetch_len(loc_point_gda[48, ], bearing = c(seq(0, 330, 30)), shoreline = clsf[clsf$elev_m %in% c(0.43, 0.39, 0.43) ,], dmax = 20000)
 
 # Rearrange fetch matrix for geom_spoke plotting
 # There is a bit of work due to angles are seen differently from two function.
@@ -86,6 +97,16 @@ to_fetch %>%
          # Re-assign angle and transform to radian
          X = rep(st_coordinates(loc_point_gda[1:47, ])[, 1], each = 12),
          Y = rep(st_coordinates(loc_point_gda[1:47, ])[, 2], each = 12)) -> to_spoke
+
+# Single point fetch goes a bit differnet way to sort to plotting format
+cl_fetch %>%
+  as_tibble() %>%
+  mutate(angle = (abs(seq(0, 330, 30)-360)+90)*pi/180,
+         fetch = value,
+         # Re-assign angle and transform to radian
+         X = rep(st_coordinates(loc_point_gda[48, ])[, 1], each = 12),
+         Y = rep(st_coordinates(loc_point_gda[48, ])[, 2], each = 12), .keep = "none") -> cl_spoke
+
 # plotting fetch and coastline
 
 ggplot() +
@@ -98,6 +119,15 @@ ggplot() +
            ylim = c(min(st_coordinates(loc_point_gda[1:47, ])[, 2]) - 20000,
                     max(st_coordinates(loc_point_gda[1:47, ])[, 2]) + 20000))
 
+ggplot() +
+  geom_sf(data = clsf[clsf$elev_m %in% c(0.43, 0.39, 0.43) ,]) +
+  geom_spoke(data = cl_spoke, 
+             aes(x = X, y = Y, angle = angle, radius = fetch)) +
+  geom_sf(data = loc_point_gda[48, ], color = "red") +
+  coord_sf(xlim = c(min(st_coordinates(loc_point_gda[48, ])[, 1]) - 20000,
+                    max(st_coordinates(loc_point_gda[48, ])[, 1]) + 20000),
+           ylim = c(min(st_coordinates(loc_point_gda[48, ])[, 2]) - 20000,
+                    max(st_coordinates(loc_point_gda[48, ])[, 2]) + 20000))
 
 # Bathymetry data obtain from NOAA (highest resolution 0.5 degree)
 # Problem intertidal points are actually above higher than sea level
