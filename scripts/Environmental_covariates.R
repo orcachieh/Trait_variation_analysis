@@ -17,8 +17,14 @@ library(shape)
 library(waver)
 library(mapdata)
 library(maps)
+library(ncdf4) # package for netcdf manipulation
 library(terra)
 library(ggplot2)
+
+
+#+ Source functions from Functions.R
+
+source("./Functions.R")
 
 #' This document present the 
 
@@ -234,3 +240,5 @@ file.exists(headername)
 
 read.ENVI(filename, header = headername) -> aa
 
+## Use climate data from climate store
+eastward_2m_wind <- sort_nc("eastward_2m_wind_2015_2023")
