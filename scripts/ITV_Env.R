@@ -30,7 +30,12 @@ source("./Functions.R")
 trait_dat <- read.csv("../trait_raw_data.csv", header = TRUE)
 env_var <- read.csv("../environment_variables.csv", header = TRUE)
 
+# change location name to match smapleID in trait_dat
+env_var %>%
+  
+
 trait_dat %>%
+  left_join(env_var, by = )
   mutate(Belowground_dry_mass1 = as.numeric(Belowground_dry_mass1)) %>%
   select(!ends_with("photo.") & !contains("note") &
            !Pack & 
