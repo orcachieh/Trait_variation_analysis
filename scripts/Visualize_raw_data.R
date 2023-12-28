@@ -31,7 +31,7 @@ library(plotly)
 
 #+ Read data and Pivot to plotting format, warning = FALSE
 
-trait_dat <- read.csv("../Raw_data.csv", header = TRUE)
+trait_dat <- read.csv("../trait_raw_data.csv", header = TRUE)
 
 trait_dat %>%
   mutate(Belowground_dry_mass1 = as.numeric(Belowground_dry_mass1)) %>%
