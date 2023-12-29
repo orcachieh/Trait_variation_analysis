@@ -35,11 +35,11 @@ match_fetch <- function(wind_data, fetch_data){
   # Find the closest available fetch angle to the prevalence wind and store it
   sapply(wind_data$mean_dir, 
          function(i) fetch_direction[which.min(abs(i - fetch_direction))]) %>%
-    matrix(nrow = 36, ncol = 12, byrow = TRUE) -> closest_angle
+    matrix(nrow = nrow(fetch_data), ncol = 12, byrow = TRUE) -> closest_angle
   
   # Then use the closest_anlge to select the fetch for each month at each location
-  select_fetch <- matrix(nrow = 36, ncol = 12)
-  for(i in 1:36){
+  select_fetch <- matrix(nrow = nrow(fetch_data), ncol = 12)
+  for(i in 1:nrow(fetch_data)){
     for(j in 1:12){
       select_fetch[i, j] <- all_fetch[i, colnames(all_fetch) == closest_angle[i, j]]
     }

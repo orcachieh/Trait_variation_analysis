@@ -51,6 +51,23 @@ loc_point_all <- st_as_sf(x = loc,
                      coords = c("lon", "lat"),
                      crs = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
+# remove 1. sediment sample point but keep mixed label samples (PAL9SED, COC3SED and PIC4SED)
+#        2. Seagrass boundary at Nelly bay
+#        3. Samples I did not measure in the lab
+# Change COC3 to COC4
+
+loc_point_all %>%
+  mutate(name = ifelse(row_number() == 26, "PAL9_26122022", name),
+         name = ifelse(row_number() == 3, "COC4_10092022", name),
+         name = ifelse(row_number() == 40, "PIC4_10092022", name)) %>%
+  filter(!grepl("SED", name),
+         !grepl("SEAG", name),
+         !grepl("PIC*_06112022", name),
+         !name %in% c("PAL6_09102022", "PAL10_22012023", 
+                      "PAL11_22012023", "PAL12_22012023",
+                      "PIC3_10092022",
+                      "GEO4_24012023", "GEO5_24012023", "GEO6_24012023")) -> loc_point
+
 #' # Environmental variables\
 #' Required data are listed below\
 #' 1. Relative physical exposure\
@@ -145,20 +162,7 @@ allsf %>%
   filter(elev_m > 0) %>%
   slice(which.min(elev_m)) -> coast_elev
 
-# remove 1. sediment sample point
-#        2. Seagrass boundary at Nelly bay
-#        3. Samples I did not measure in the lab
-loc_point_all %>%
-  mutate(name = ifelse(row_number() == 26, "PAL9_26122022", name)) %>%
-  filter(!grepl("SED", name),
-         !grepl("SEAG", name),
-         !grepl("PIC*_06112022", name),
-         !name %in% c("PAL6_09102022", "PAL10_22012023", 
-                      "PAL11_22012023", "PAL12_22012023",
-                      "PIC3_10092022",
-                      "GEO4_24012023", "GEO5_24012023", "GEO6_24012023")) -> loc_point
-
-# project sample points as coastline data, GDA. This process is required for fecth calculation by "waver" package
+# project sample points as coastline data, GDA. This process is required for fetch calculation by "waver" package
 loc_point_gda <- st_transform(loc_point, crs(allsf))
 
 # calculate fetch for sample points. 72 fetch lines (360 degree each with 5 degree separation) are calculated for each point.
@@ -196,23 +200,23 @@ ggplot() +
                     max(st_coordinates(loc_point_gda)[, 2]) + 20000)) -> fetch_plot
 
 # Zoom to different location
-# Townsville 1:31
-zoom(fetch_plot, 1:31)
+# Townsville 1:33
+zoom(fetch_plot, 1:33)
 
-# Clairview (32)
-zoom(fetch_plot, 32)
-
-# Hervey Bay (33)
-zoom(fetch_plot, 33)
-
-# Karumba (34)
+# Clairview (34)
 zoom(fetch_plot, 34)
 
-# Gladstone (35) 
+# Hervey Bay (35)
 zoom(fetch_plot, 35)
 
-# Weipa (36)
+# Karumba (36)
 zoom(fetch_plot, 36)
+
+# Gladstone (37)
+zoom(fetch_plot, 37)
+
+# Weipa (38)
+zoom(fetch_plot, 38)
 
 #' Calculate wind intensity and direction through u and v component of 2m wind
 #+ Calculate wind intensity and direction
@@ -237,8 +241,8 @@ rWind::uv2ds(u10_math, v10_math) -> wind_dir_speed
 
 # Calculate monthly average wind of each location
 wind_10m_month <- as_tibble(wind_dir_speed) %>%
-  mutate(location = as.factor(rep(1:36, each = 96)),
-         each12 = as.factor(rep(rep((1:12), each = 8), times = 36))) %>%
+  mutate(location = as.factor(rep(1:nrow(loc_point), each = 96)),
+         each12 = as.factor(rep(rep((1:12), each = 8), times = nrow(loc_point)))) %>%
   group_by(location, each12) %>%
   summarise(mean_dir = min(dir), mean_speed = mean(speed), n = n()) %>%
   ungroup() # This create a long table with prevalence wind speed and direction of each month at each sample location.
@@ -365,8 +369,8 @@ temp[,-1] %>%
 
 temp[,-1] %>%
   pivot_longer(everything(), names_to = "time", values_to = "temp") %>%
-  mutate(location = as.factor(rep(1:36, each = 96)),
-         each12 = as.factor(rep(rep((1:12), each = 8), times = 36))) %>%
+  mutate(location = as.factor(rep(1:nrow(loc_point), each = 96)),
+         each12 = as.factor(rep(rep((1:12), each = 8), times = nrow(loc_point)))) %>%
   group_by(location, each12) %>%
   summarise(min = min(temp), n = n()) %>%
   summarise(mean_min = mean(min), n = n()) %>%
@@ -382,8 +386,8 @@ temp[,-1] %>%
 
 temp[,-1] %>%
   pivot_longer(everything(), names_to = "time", values_to = "temp") %>%
-  mutate(location = as.factor(rep(1:36, each = 96)),
-         each12 = as.factor(rep(rep((1:12), each = 8), times = 36))) %>%
+  mutate(location = as.factor(rep(1:nrow(loc_point), each = 96)),
+         each12 = as.factor(rep(rep((1:12), each = 8), times = nrow(loc_point)))) %>%
   group_by(location, each12) %>%
   summarise(max = max(temp), n = n()) %>%
   summarise(mean_max = mean(max), n = n()) %>%
@@ -399,8 +403,8 @@ temp[,-1] %>%
 
 temp[,-1] %>%
   pivot_longer(everything(), names_to = "time", values_to = "temp") %>%
-  mutate(location = as.factor(rep(1:36, each = 96)),
-         each12 = as.factor(rep(rep((1:12), each = 8), times = 36))) %>%
+  mutate(location = as.factor(rep(1:nrow(loc_point), each = 96)),
+         each12 = as.factor(rep(rep((1:12), each = 8), times = nrow(loc_point)))) %>%
   group_by(location, each12) %>%
   summarise(max = max(temp), min = min(temp), n = n()) %>%
   mutate(var = max - min) %>%

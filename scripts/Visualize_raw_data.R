@@ -34,7 +34,6 @@ library(plotly)
 trait_dat <- read.csv("../trait_raw_data.csv", header = TRUE)
 
 trait_dat %>%
-  mutate(Belowground_dry_mass1 = as.numeric(Belowground_dry_mass1)) %>%
   select(!ends_with("photo.") & !contains("note") &
           !Pack & 
           !Aboveground_dry_mass3 &
