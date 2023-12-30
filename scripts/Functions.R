@@ -145,3 +145,41 @@ sed_match <- function(seagrass, sediment){
   
   return(sed_point)
 }
+
+
+#### PCA biplot ####
+ITV_pva_biplot <- function(ITV_pca, cluster, color_arrow){
+  if(color_arrow == 1){
+    fviz_pca_biplot(ITV_pca, 
+                    # Fill individuals by groups
+                    geom.ind = "point",
+                    pointshape = 21,
+                    pointsize = 2.5,
+                    fill.ind = as.factor(cluster),
+                    col.ind = "black",
+                    # Color variable by groups
+                    col.var = "contrib",
+                    gradient.cols = "RdYlBu",
+                    legend.title = list(fill = "Clusters", color = "Contrib."),
+                    repel = TRUE,        # Avoid label overplotting
+                    title = paste("Biplot", str_sub(deparse(substitute(cluster)), start = 14), "clusters", sep = " ")
+    ) +
+      ggpubr::fill_palette("jco")   # Individual fill color
+  } else {
+    fviz_pca_biplot(ITV_pca, 
+                    # Fill individuals by groups
+                    geom.ind = "point",
+                    pointshape = 21,
+                    pointsize = 2.5,
+                    fill.ind = as.factor(cluster),
+                    col.ind = "black",
+                    col.var = "darkgreen",
+                    legend.title = "Clusters",
+
+                    repel = TRUE,        # Avoid label overplotting
+                    title = paste("Biplot", str_sub(deparse(substitute(cluster)), start = 14), "clusters", sep = " ")
+    )+
+      ggpubr::fill_palette("jco")      # Individual fill color
+  }
+}
+

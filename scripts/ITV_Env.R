@@ -19,6 +19,7 @@ library(lme4)
 library(cluster)    # clustering algorithms
 library(factoextra) # clustering algorithms & visualization
 library(gridExtra) # arranging plots
+library(psych) # pairwise scatter plot
 
 #+ Source functions from Functions.R 
 #### Input functions  ####
@@ -184,7 +185,7 @@ gap_stat <- clusGap(HU_clu_data_std, FUN = kmeans, nstart = 25,
 print(gap_stat, method = "firstmax")
 
 fviz_gap_stat(gap_stat)
-# The result is a bit funny since gap goes up according to increasing of cluster number.
+# The gap statistic result is a bit funny since gap goes up according to increasing of cluster number.
 # Nevertheless, firstmax method indicates 2 cluster is optimal
 
 
@@ -205,7 +206,9 @@ grid.arrange(p1, p2, p3, nrow = 2)
 # If K = 2, the cluster is exactly same as HUN and HUW
 
 HU_ave %>%
-  mutate(Cluster = k3$cluster)
+  mutate(Cluster = k3$cluster) %>%
+  select(SampleID, abb, Cluster) %>%
+  head(20)
 
 # Check for outliers and grouping condition of 3 different cluster numbers (2, 3, 4)
 # Observations with a large silhouhette Si (almost 1) are very well clustered.
@@ -213,9 +216,12 @@ HU_ave %>%
 # Observations with a negative Si are probably placed in the wrong cluster.
 
 # Use eclus() to do k-means cluster in a way can be accept by fviz_silhouette()
-k2_sil <- eclust(HU_clu_data_std, FUNcluster = "kmeans", k = 2)
-k3_sil <- eclust(HU_clu_data_std, FUNcluster = "kmeans", k = 3)
-k4_sil <- eclust(HU_clu_data_std, FUNcluster = "kmeans", k = 4)
+k2_sil <- eclust(HU_clu_data_std, graph = FALSE,
+                 FUNcluster = "kmeans", k = 2)
+k3_sil <- eclust(HU_clu_data_std, graph = FALSE,
+                 FUNcluster = "kmeans", k = 3)
+k4_sil <- eclust(HU_clu_data_std, graph = FALSE,
+                 FUNcluster = "kmeans", k = 4)
 
 p1 <- fviz_silhouette(k2_sil)
 p2 <- fviz_silhouette(k3_sil)
@@ -264,89 +270,86 @@ HU_ave %>%
          k4 = k4$cluster,
          pam2 = pam2$clustering,
          pam3 = pam3$clustering,
-         pam4 = pam4$clustering)
-
+         pam4 = pam4$clustering) -> HU_kmean_pam
+HU_kmean_pam
 
 #' ## HU PCA
 #' Start with PCA to identify potential grouping
 
 #+ HU PCA
 #### HU PCA ####
+# Explaination material: https://personal.utdallas.edu/~herve/abdi-awPCA2010.pdf
 
+# Create data for pca analysis
 HU_ave %>%
   select(SampleID, abb, Shoot_number:ILength) %>%
-  na.omit() -> HU_pca_ave
+  na.omit() -> HU_ave1
 
-HU_long
+# PCA analysis with scale and centered observations (samples) of each variables/columns (traits)
+HU_ave_pca <- prcomp(HU_ave1[, -c(1, 2)], 
+                 center =  TRUE,
+                 scale = TRUE)
+summary(HU_ave_pca)
 
-scaled_HU_pca_ave <- apply(HU_pca_ave[, -c(1, 2)], 2, scale)
-head(scaled_HU_pca_ave)
+# Plots to show contribution of variables (traits) and characteristic of components
 
-set.seed(111)
-ind <- sample(2, nrow(HU_pca_data),
-              replace = TRUE,
-              prob = c(0.8, 0.2))
-training <- na.omit(HU_pca_data[ind==1,])
-testing <- na.omit(HU_pca_data[ind==2,])
+# Store all pca explanation terms in var
+# Show the value below accompany with plots
+var <- get_pca_var(HU_ave_pca)
 
-library(psych)
+# Percentage of explained variance by components
+# The value can be found from above, summary(HU_ave_pca): proportion of Variance
+fviz_eig(HU_ave_pca, addlabels = TRUE)
 
-pairs.panels(training[,-1],
-             gap = 0,
-             #bg = c("red", "yellow")[training$abb],
-             pch=21)
-pairs(training[, -1])
+# Correlation between variable and component or contribution of variables to component
+# This correlation value determine the information shared by variables and components.
+# In this way, this value determine the postion of variables in the biplot
+# Smaller values in the first 2 components means the variables is less important for the first 2 components
 
-HU_pca <- prcomp(training[, -1],
-                 center = TRUE,
-                 scale. = TRUE)
-attributes(HU_pca)
-print(HU_pca)
+# Real value
+var$coord
 
-summary(HU_pca)
+# Position of the variables on a biplot
+fviz_pca_var(HU_ave_pca, col.var = "black")
 
-pairs.panels(HU_pca$x,
-             gap=0,
-             bg = c("red", "yellow")[training$abb],
-             pch=21)
+# Variables contribution to PC1, PC2 (another way of visulization)
+p1 <- fviz_contrib(HU_ave_pca, choice = "var", axes = 1)
+p2 <- fviz_contrib(HU_ave_pca, choice = "var", axes = 2)
+p3 <- fviz_contrib(HU_ave_pca, choice = "var", axes = c(1, 2))
+grid.arrange(p1, p2, p3, nrow = 1)
 
-library(ggbiplot)
 
-g <- ggbiplot(HU_pca,
-              obs.scale = 1,
-              var.scale = 1,
-              groups = training$Location,
-              ellipse = TRUE,
-              circle = TRUE,
-              ellipse.prob = 0.68)
-g <- g + scale_color_discrete(name = '')
-g <- g + theme(legend.direction = 'horizontal',
-               legend.position = 'top')
-print(g)
+# Quality of representation of components to variables or observation
+# This is denote by Cos2 (cosine square)
+# Cos2 indicates how well does the component explain variables or observation
+# In general the value of variable Cos2 has similar order to correlation between components and variables
 
-trg <- predict(HU_pca, training)
-trg <- data.frame(trg, training[1])
-tst <- predict(HU_pca, testing)
-tst <- data.frame(tst, testing[1])
+# value of component representation on each variable
+var$cos2
 
-library(nnet)
+# Plot the 1st and 2nd component representation on each variable
+fviz_cos2(HU_ave_pca, choice = "var", axes = c(1,2))
 
-trg$abb <- relevel(trg$abb, ref = "HUN")
-mymodel <- multinom(Location ~ PC1+PC2, data = trg)
-summary(mymodel)
+# Plot the 1st and 2nd component representation on each observation
+fviz_cos2(HU_ave_pca, choice = "ind", axes = c(1,2))
 
-p <- predict(mymodel, trg)
-tab <- table(p, trg$Location)
-tab
 
-1 - sum(diag(tab))/sum(tab)
+# Plot the pca biplot, use customize function based on fviz_pca_biplot
 
-p1 <- predict(mymodel, tst)
-tab1 <- table(p1, tst$Location)
-tab1
+# Input clusters from Kmean or PAM clustering
+# Decide how to present variable arrows
+# color_arrow = 1: color the variable arrows according to their contribution
+# color_arrow = 2: same color for all variable arrows
 
-1 - sum(diag(tab1))/sum(tab1)
+# Show the 2 clusters from Kmean and PAM
+p1 <- ITV_pva_biplot(HU_ave_pca, HU_kmean_pam$k2, 2)
+p2 <- ITV_pva_biplot(HU_ave_pca, HU_kmean_pam$pam2, 2)
+grid.arrange(p1, p2, nrow = 1)
 
+# Show 3 cluster with variables contribution
+p1 <- ITV_pva_biplot(HU_ave_pca, HU_kmean_pam$k3, 1)
+p2 <- ITV_pva_biplot(HU_ave_pca, HU_kmean_pam$pam3, 1)
+grid.arrange(p1, p2, nrow = 1) # This code might cause error if the plots window is too small. Just increase it if needed.
 
 #' ## HU GLMM
 #' Work on GLMM. Perform following steps:\
@@ -357,7 +360,22 @@ tab1
 
 #+ HU GLMM
 
+HU_long
+HU_ave
 
-lm(Leafwidth ~ total_REI + depth + air_exposure + ave_temp, data = trait_env_HU) -> aa
+pairs.panels(HU_long[,-c(1:8, 18:31)],
+             gap = 0,
+             density = TRUE,  # show density plots
+             hist.col = "#00AFBB",
+             ellipses = TRUE) # show correlation ellipses)
+# Check expained variable (x1...xn) correlation
+pairs.panels(HU_long[, c(19:25, 30, 31)],
+             gap = 0,
+             density = TRUE,  # show density plots
+             hist.col = "#00AFBB",
+             ellipses = TRUE) # show correlation ellipses)
+
+
+lm(Leafwidth ~ total_REI + depth + air_exposure + ave_temp, data = HU_long) -> aa
 summary(aa)
 
