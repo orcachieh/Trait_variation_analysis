@@ -270,7 +270,7 @@ wind_fetch %>%
 #+ Depth
 #### Depth ####
 
-# Create Digital Elevation Models (DEMs) from the contour lines shape files above to receive depth of each sample points.
+# Use costumize function (sample_depth) to Create Digital Elevation Models (DEMs) from the contour lines shape files above to receive depth of each sample points.
 
 # Townsville region. Need to merge 2 contour lines file first to cover all points
 to <- rbind(to1, to2)
@@ -322,6 +322,7 @@ we1_a<- rast("../Coastal_data/ITEM/ITEM_REL_244_141.39_-12.88.tif")
 
 ka1_a <- rast("../Coastal_data/ITEM/ITEM_REL_136_140.66_-17.14.tif")
 
+# Use customize function (sample_air) to intersect air exposure raster
 # Townsville region. Need to merge 2 contour lines file first to cover all points
 to_a <- merge(to1_a, to2_a)
 to_air <-sample_air(to_a)
