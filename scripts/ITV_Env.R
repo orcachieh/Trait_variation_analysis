@@ -20,6 +20,7 @@ library(cluster)    # clustering algorithms
 library(factoextra) # clustering algorithms & visualization
 library(gridExtra) # arranging plots
 library(psych) # pairwise scatter plot
+library(DHARMa)     #for residual diagnostics
 
 #+ Source functions from Functions.R 
 #### Input functions  ####
@@ -355,27 +356,243 @@ grid.arrange(p1, p2, nrow = 1) # This code might cause error if the plots window
 #' Work on GLMM. Perform following steps:\
 #' 1. Check environmental variables correlation
 #' 2. Identify family\
-#' 3. run model\
+#' 3. Run model\
 #' 4. Compared model prediction with original data\
 
-#+ HU GLMM
+#+ HU data exploration
 
-HU_long
-HU_ave
+HU_long %>%
+  na.omit() -> HU_GLM
 
-pairs.panels(HU_long[,-c(1:8, 18:31)],
+HU_GLM_box <- HU_GLM
+HU_GLM_box[c(19, 20, 22:25, 30, 31)] <- lapply(HU_GLM_box[c(19, 20, 22:25, 30, 31)] , function(x) c(scale(x)))
+
+# 
+HU_GLM_box %>%
+  select(Canopyheight:Internodelength) %>%
+  distinct() -> HU_GLM_re
+
+HU_GLM_box %>%
+  select(Shoot_number:BDM) %>%
+  distinct() -> HU_GLM_nonre
+
+HU_GLM_box %>%
+  select(total_REI, depth, ave_temp:mean_var, runoff, perci) %>%
+  distinct() -> HU_GLM_env
+
+ggplot(data = pivot_longer(HU_GLM_re, everything())) +
+  geom_boxplot(aes(x = name, y = value))
+
+ggplot(data = pivot_longer(HU_GLM_nonre, everything())) +
+  geom_boxplot(aes(x = name, y = value))
+
+ggplot(data = pivot_longer(HU_GLM_env, everything())) +
+  geom_boxplot(aes(x = name, y = value))
+
+ggplot(data = pivot_longer(HU_GLM_re, everything())) +
+  geom_histogram(aes(x = value))
+  
+
+
+pairs.panels(HU_GLM_re,
              gap = 0,
              density = TRUE,  # show density plots
              hist.col = "#00AFBB",
              ellipses = TRUE) # show correlation ellipses)
-# Check expained variable (x1...xn) correlation
-pairs.panels(HU_long[, c(19:25, 30, 31)],
+pairs.panels(HU_GLM_nonre,
+             gap = 0,
+             density = TRUE,  # show density plots
+             hist.col = "#00AFBB",
+             ellipses = TRUE)
+# Check explained variable (x1...xn) correlation
+pairs.panels(HU_GLM_env,
              gap = 0,
              density = TRUE,  # show density plots
              hist.col = "#00AFBB",
              ellipses = TRUE) # show correlation ellipses)
 
 
-lm(Leafwidth ~ total_REI + depth + air_exposure + ave_temp, data = HU_long) -> aa
-summary(aa)
+#' After processes above, I identifies that a few explained variables need to be log before scale, and all will need to be scaled except categorical variables or proportional variables\
+#' 1. total_REI: skew distribution -> scale(log(total_REI))\
+#' 2. Air_exposure is ordered categorical data. Need to be treated differently in the model\
+#' 3. Sediment need to sum up to 100. Not sure how to deal with this in model. If can't figure it out, maybe just separate to 4 types depends on the dominant sediment types.\
+
+
+#' Before run the model with real data, start with simulated data set.
+
+#+ Simulated data, comments = "", warnings = FALSE
+
+set.seed(1429850)
+# Simulate two types of depth
+de <- c(sample(c(4, 5, 3), 80, replace = TRUE),
+        sample(c(0.2, 0.1), 20, replace = TRUE))
+# Mean leaf width is depends on the depth
+lw = c(rnorm(80, mean = mean(de[1:80]*2), sd = 2),
+       rnorm(20, mean = mean(de[81:100]*5), sd = 1))
+# group 1 mean
+mean(de[1:80]*2)
+# group 2 mean
+mean(de[81:100]*5)
+# Leaf width data show 2 set of values according to their means. The proportion is 2:8
+
+#+ Pure mu model, results = "hide", warning = FALSE, message = FALSE, comment = ""
+# First run a model without explained variable (de)
+dat_list <- list(
+  K = 2, # number of mixture component
+  N = length(lw),
+  LW = lw
+)
+
+LW_mix_mu_test <- cstan( file = "../stan_file/mixture_regression_mu.stan",
+                   data=dat_list, chains=4, cores=4,
+                   iter = 4000,
+                   warmup = 3000,
+                   control=list(adapt_delta=0.95,
+                                max_treedepth = 10))
+#+ Pure mu output
+dashboard(LW_mix_mu_test)
+precis(LW_mix_mu_test, depth = 2)
+# "theta" is mixing proportion. The estimation is really close to true value (2:8)
+# "sigma" is standard deviation of each group of the data. Also close to real value (80% group[2] is set to 2. 20% group[1]is set to 1). If increase the standard deviation in the simulating process, the model estimation will deviate from the real data more.
+# "mu" is the group mean. Close to the real value as well (7.85 and 0.725)
+
+#+ Explained variables included, results = "hide", warning = FALSE, message = FALSE, comment = ""
+# This model include the explained variable (de)
+dat_list <- list(
+  K = 2, # number of mixture component
+  N = length(lw),
+  LW = lw,
+  de = de
+)
+
+LW_mix_sim_test <- cstan( file = "../stan_file/mixture_regression_simple_test.stan",
+                    data=dat_list, chains=4, cores=4,
+                    iter = 4000,
+                    warmup = 3500,
+                    control=list(adapt_delta=0.95,
+                                 max_treedepth = 10))
+#+ Explained variables included output
+dashboard(LW_mix_sim_test)
+precis(LW_mix_sim_test, depth = 2)
+
+# Theta, sigma, and mu are still doing well in this model.
+# The coefficient (b = 2 or 5) used to determine mu in the simulation did not pick up by the model well enough. Need a bit more work on model structure,
+
+
+#+ Extra example not run, eval = FALSE, include = FALSE
+
+# Real data, no explained variables
+dat_list <- list(
+  K = 2, # number of mixture component
+  N = nrow(HU_GLM),
+  LW = HU_GLM$Leafwidth
+)
+
+LW_mix_mu <- stan( file = "../stan_file/mixture_regression_mu.stan",
+                   data=dat_list, chains=4, cores=4,
+                   iter = 1000,
+                   warmup = 500,
+                   control=list(adapt_delta=0.95,
+                                max_treedepth = 10))
+dashboard(LW_mix_mu)
+precis(LW_mix_mu, depth = 2)
+
+# real data with expained variabels, not sorted yet.
+dat_list <- list(
+  K = 2, # number of mixture component
+  P = 3, # intercept + number of predictors
+  N = nrow(HU_GLM),
+  LW = HU_GLM$Leafwidth,
+  X = matrix(c(rep(1, nrow(HU_GLM)),
+               as.numeric(scale(HU_GLM$depth)),
+               as.numeric(scale(log(HU_GLM$total_REI)))),
+             nrow = nrow(HU_GLM))
+)
+
+LW_mix_sim <- stan( file = "../stan_file/mixture_regression_simple.stan",
+                    data=dat_list, chains=4, cores=4,
+                    iter = 1000,
+                    warmup = 500,
+                    control=list(adapt_delta=0.95,
+                                 max_treedepth = 10))
+dashboard(LW_mix_sim)
+precis(LW_mix_sim, depth = 3)
+
+# brms on simulated data. suprisingly not doing too good
+priors <- c(
+  prior(normal(0, 7), Intercept, dpar = mu1),
+  prior(normal(4, 7), Intercept, dpar = mu2)
+)
+test_dat = data.frame(lw, de = rnorm(100))
+fit1_test <- brm(bf(lw ~ de), 
+                 test_dat,
+                 family = mix,
+                 prior = priors,
+                 iter = 1000,
+                 warmup = 500,
+                 chains = 3,
+                 cores = 3,
+                 control = list(adapt_delta = 0.95))
+
+update(fit1_test)
+summary(fit1_test)
+brms::stancode(fit1_test)
+
+preds <- fit1_test %>% posterior_predict(nasamples = 250, summary = FALSE)
+fit1_test.resids <- createDHARMa(simulatedResponse = t(preds),
+                                 observedResponse = lw,
+                                 fittedPredictedResponse = apply(preds, 2, median),
+                                 integerResponse = FALSE)
+fit1_test.resids %>% plot()
+fit1_test.resids %>% testDispersion()
+
+# example of ordered categorical expained variables from rethinking package
+
+data(Trolley)
+d <- Trolley
+
+dat <- list(
+  R = d$response ,
+  action = d$action,
+  intention = d$intention,
+  contact = d$contact,
+  E = as.integer( d$edu_new ), # edu_new as an index
+  alpha = rep( 2 , 7 ) ) # delta prior
+
+m12.6 <- ulam(
+  alist(
+    R ~ ordered_logistic( phi , kappa ),
+    phi <- bE*sum( delta_j[1:E] ) + bA*action + bI*intention + bC*contact,
+    kappa ~ normal( 0 , 1.5 ),
+    c(bA,bI,bC,bE) ~ normal( 0 , 1 ),
+    vector[8]: delta_j <<- append_row( 0 , delta ),
+    simplex[7]: delta ~ dirichlet( alpha )
+  ), data=dat , chains=4 , cores=4 )
+
+
+rethinking::stancode(m12.6)
+
+dat_list <- list(
+  K = 2, # number of mixture component
+  N = nrow(HU_GLM),
+  LW = HU_GLM$Leafwidth,
+  D = HU_GLM$depth,
+  REI = as.numeric(scale(HU_GLM$total_REI)),
+  AIR = as.integer(HU_GLM$air_exposure+1),
+  alpha = rep(2, 4), # Prior for ordered categories process
+  GA = HU_GLM$Gravel,
+  SA = HU_GLM$Sand,
+  SI = HU_GLM$Silt,
+  CL = HU_GLM$Clay
+)
+
+LW_mix_cat <- stan( file = "../stan_file/mixture_regression.stan",
+                    data=dat_list, chains=4, cores=4,
+                    iter = 5000,
+                    warmup = 4000,
+                    control=list(adapt_delta=0.9,
+                                  max_treedepth = 14) )
+dashboard(LW_mix_cat)
+precis(LW_mix_cat, depth = 2)
+
 
