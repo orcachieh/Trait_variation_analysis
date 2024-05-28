@@ -3,11 +3,14 @@ data {
   int<lower=1> N;  //      number of observations
   vector[N] LW;   //measured leaf width
   vector[N] de;
+  vector[N] rei;
 }
 
 parameters {
   real bde1;
   real bde2;
+  real brei1;
+  real brei2;
   
   real alpha;
   real<upper = alpha> gamma;
@@ -26,12 +29,14 @@ transformed parameters {
 
 model {
   // priors
-  target += normal_lpdf(bde1 | 0, 5);
-  target += normal_lpdf(bde2 | 0, 5);
+  target += normal_lpdf(bde1 | 0, 1);
+  target += normal_lpdf(bde2 | 0, 1);
+  target += normal_lpdf(brei1 | 0, 1);
+  target += normal_lpdf(brei2 | 0, 1);
   
-  target += normal_lpdf(alpha | 5, 3);
-  target += normal_lpdf(gamma | 5, 3) - 
-   normal_lcdf(alpha | 5, 3);
+  target += normal_lpdf(alpha | 6, 1);
+  target += normal_lpdf(gamma | 6, 1) - 
+   normal_lcdf(alpha | 6, 1);
   
   target += lognormal_lpdf(sigma1 | 0, 1) - 
    normal_lccdf(0 | 0, 1);
@@ -44,9 +49,9 @@ model {
   // likelihood
   for(n in 1:N)
     target += log_sum_exp(log(theta1) +
-                          normal_lpdf(LW[n] | alpha + de[n] * bde1, sigma1),
+                          normal_lpdf(LW[n] | alpha + de[n] * bde1 + rei[n] * brei1, sigma1),
                           log(theta2) +
-                          normal_lpdf(LW[n] | gamma + de[n] * bde2, sigma2));
+                          normal_lpdf(LW[n] | gamma + de[n] * bde2 + rei[n] * brei2, sigma2));
 }
 
 //generated quantities {
