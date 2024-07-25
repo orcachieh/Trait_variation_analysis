@@ -78,6 +78,7 @@ loc_point_all %>%
 #' 6. Average of maximum temperature\
 #' 7. Temperature variation\
 #' 8. Sediment\
+#' 8a. Median grain size\
 #' 9. Runoff\
 #' 10. Precipitation\
 #' 
@@ -429,10 +430,10 @@ loc %>%
          loc = gsub("\\s|\\d", "", loc),
          date = str_c(str_sub(date, 1, 4), str_sub(date, 7, 8), sep = ""),
          name = str_c(loc, date, sep = "_")) %>%
-  select(lat, lon, name)-> loc_sed
+  select(lat, lon, name)-> sed_sub
 
 sed %>%
-  left_join(loc_sed, by = "name") -> sed_partial
+  left_join(sed_sub, by = "name") -> sed_partial
 
 # The missing locality of sediment sample are
 # 1. ZC -> use ZC081022 locality directly
@@ -457,6 +458,52 @@ sed_all <- sed_partial
 
 # seagrass input: loc_point, sediment input: sed_all
 loc_sed <- sed_match(loc_point, sed_all)
+
+
+# Read in another format of sediment data to calculate mean grain size
+
+sed_each <- read.csv("../Sediment_data/sed_each.csv")
+colnames(sed_each)[1] <- "name"
+
+sed_each %>%
+  pivot_longer(cols = X0.405:X6000,
+               values_to = "freq",
+               names_to = "size") %>%
+  mutate(size = as.numeric(gsub("X", "", size)),
+         freq = freq * 100) %>%
+  group_by(name) %>%
+  summarise(sed_mean = mean(rep(size, freq))) -> sed_me
+
+sed_each %>%
+  select(name) %>%
+  left_join(sed_me, by = "name") %>%
+  left_join(sed_sub, by = "name") -> sed_each_partial
+
+# The missing locality of sediment sample are
+# 1. ZC -> use ZC081022 locality directly
+# 2. GEOSED_061122 -> use GEO3_06112022 locality
+# 3. NELSED_240123 -> use NEL3_24012023 locality
+# 4. TropWATER samples (*5) -> use seagrass sample localities directly
+
+# 1.
+sed_each_partial[5, c(3, 4)] = loc[47, c(2, 1)]
+#2
+sed_each_partial[7, c(3, 4)] = loc[6, c(2, 1)]
+#3
+sed_each_partial[9, c(3, 4)] = loc[14, c(2, 1)]
+#4
+sed_each_partial[c(12:16), c(3, 4)] = loc[c(52, 49, 50, 48, 51), c(2, 1)]
+# A section of ugly manual code. If reoreder any of the 2 tables. This section need to be changed accordingly.
+
+
+# rename to state the file is complete
+sed_mean <- sed_each_partial
+
+# Matching the median grain size data to sample location by nearest neighborhood
+
+# seagrass input: loc_point, sediment input: sed_med
+loc_sed_mean <- sed_mean_match(loc_point, sed_mean)
+
 
 #' ## 9. Runoff
 
@@ -484,14 +531,14 @@ perc[,-1] %>%
   mutate(perci = value*1000, .keep = "none") %>% # multiply 1000 to change the unit to mm
   cbind(location = loc_point$name) -> ave_perci
 
-#' # Combine 10 variables
+#' # Combine 11 variables
 
-#+ Combine 10 variables
-#### Combine 10 variables ####
+#+ Combine 11 variables
+#### Combine 11 variables ####
 
 var <- list(total_REI, loc_elev, air_exposure,
             ave_temp, ave_min_temp, ave_max_temp,
-            ave_temp_var, loc_sed, ave_runoff, ave_perci)
+            ave_temp_var, loc_sed, loc_sed_mean, ave_runoff, ave_perci)
 # Sort and clean up to produce finally table of variables
 var %>%
   reduce(full_join, by="location") %>%

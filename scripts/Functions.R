@@ -93,7 +93,7 @@ sample_depth <- function(contour_data, ref = temp_2m, loc = loc_point){
   z_proj <- project(z, crs(ref), method = "near")
   plot(z_proj)
   
-  # Extract depth of all samples points. The points not cover in the raster extent will recieve NaN
+  # Extract depth of all samples points. The points not cover in the raster extent will receive NaN
   sample_d <- extract(z_proj, loc)
   
   return(sample_d)
@@ -109,7 +109,7 @@ sample_air <- function(air_exposure, ref = temp_2m, loc = loc_point){
   # method = "near" use nearest neighborhood makes sure the raster value is not average across nearby cells
   project(air_exposure, crs(ref), method = "near") -> air_exposure_proj
   
-  # Extract depth of all samples points. The points not cover in the raster extent will recieve NaN
+  # Extract depth of all samples points. The points not cover in the raster extent will receive NaN
   sample_a <- extract(air_exposure_proj, loc_point)
   
   return(sample_a)
@@ -147,8 +147,35 @@ sed_match <- function(seagrass, sediment){
 }
 
 
+sed_mean_match <- function(seagrass, sediment){
+  # To use terra::nearest, both layer need to be SpatVector type
+  loc_sed_near <- vect(seagrass)
+  sed_near <- vect(sediment, crs = crs(loc_sed_near))
+  
+  # Run nearest to find cloesest matched seagrass and sediment points
+  nearest(loc_sed_near, sed_near) -> sea_sed
+  # create a tibble to store the matched sediment sample ID
+  tibble(`ID` = values(sea_sed)$to_id) -> to_id
+  
+  # Create a ID column in sediment for joint purpose
+  sediment %>%
+    mutate(ID = 1:16) -> sed_ID
+  
+  # Use the matched sediment ID to create the sediment data for each sample points
+  to_id %>% 
+    left_join(sed_ID, by = "ID") %>%
+    select(sed_mean) %>%
+    cbind(location = loc_point$name) -> sed_point
+  
+  # Assign NA to intertidal points. This need to be caution
+  sed_point[grep("*SUB*", sed_point$location), 1] = NA
+  
+  return(sed_point)
+}
+
+
 #### PCA biplot ####
-ITV_pva_biplot <- function(ITV_pca, cluster, color_arrow){
+ITV_pca_biplot <- function(ITV_pca, cluster, color_arrow){
   if(color_arrow == 1){
     fviz_pca_biplot(ITV_pca, 
                     # Fill individuals by groups
@@ -172,14 +199,13 @@ ITV_pva_biplot <- function(ITV_pca, cluster, color_arrow){
                     pointshape = 21,
                     pointsize = 2.5,
                     fill.ind = as.factor(cluster),
-                    col.ind = "black",
-                    col.var = "darkgreen",
+                    palette = c("#009E73", "#E69F00"), # Individual fill color palette
+                    col.ind = "gray7",
+                    col.var = "gray20",
                     legend.title = "Clusters",
-
                     repel = TRUE,        # Avoid label overplotting
                     title = paste("Biplot", str_sub(deparse(substitute(cluster)), start = 14), "clusters", sep = " ")
-    )+
-      ggpubr::fill_palette("jco")      # Individual fill color
+    )
   }
 }
 
