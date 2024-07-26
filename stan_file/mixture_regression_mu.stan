@@ -1,7 +1,7 @@
 data {
   int<lower=1> K;  //number of mixture component (clusters) 
   int<lower=1> N;  //      number of observations
-  real LW[N];   //measured leaf width
+  array[N] real LW;   //measured leaf width
 }
 
 parameters {

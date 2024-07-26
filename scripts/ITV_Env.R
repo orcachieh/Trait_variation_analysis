@@ -582,15 +582,24 @@ dat_list <- list(
   LW = HU_GLM$LWidth
 )
 
-LW_mix_mu <- stan( file = "../stan_file/mixture_regression_mu.stan",
-                   data=dat_list, chains=4, cores=4,
-                   iter = 4000,
-                   warmup = 3500,
-                   control=list(adapt_delta=0.99,
-                                max_treedepth = 10))
+
+LW_mix_mod <- cmdstan_model("../stan_file/mixture_regression_mu.stan")
+
+# Run MCMC using the 'sample' method from cmdstan
+LW_mix <- LW_mix_mod$sample(
+  data = dat_list,
+  seed = 568,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 6000,
+  iter_sampling = 2000,
+  adapt_delta = 0.97
+)
+
 #+ Pure mu output for leaf width
-dashboard(LW_mix_mu)
-precis(LW_mix_mu, depth = 2)
+# dashboard(LW_mix)
+precis(LW_mix, depth = 2)
+
 
 # real data with rei variable
 dat_list <- list(
@@ -607,8 +616,22 @@ LW_mix_rei <- stan( file = "../stan_file/mixture_regression_rei.stan",
                     control=list(adapt_delta=0.99,
                                  max_treedepth = 10))
 #+ Leaf width output with one explained variable, relative exposure index (rei)
-dashboard(LW_mix_rei)
-precis(LW_mix_rei, depth = 2)[1:14,]
+# dashboard(LW_mix_rei)
+precis(LW_mix_rei, depth = 2)
+
+
+HU_GLM$Dummy = rnorm(nrow(HU_GLM), mean = 6, sd = 2)
+HU_GLM$Dummy2 = rnorm(nrow(HU_GLM), mean = 0, sd = 1)
+for(i in 1:nrow(HU_GLM)){
+  if(HU_GLM$abb[i] == "HUN"){
+    HU_GLM$Dummy[i] = rnorm(1, mean = 0.5, sd = 0.2)
+    HU_GLM$Dummy2[i] = rnorm(1, mean = 0.7, sd = 0.2)
+  } else{
+    HU_GLM$Dummy[i] = rnorm(1, mean = -0.5, sd = 0.2)
+    HU_GLM$Dummy2[i] = rnorm(1, mean = -0.7, sd = 0.2)
+  }
+}
+
 
 # real data with depth variable
 dat_list <- list(
@@ -627,21 +650,8 @@ LW_mix_de <- stan( file = "../stan_file/mixture_regression_rei.stan",
                                  max_treedepth = 10))
 
 #+ Leaf width output with one explained variable, depth
-dashboard(LW_mix_de)
+# dashboard(LW_mix_de)
 precis(LW_mix_de, depth = 2)
-
-
-HU_GLM$Dummy = rnorm(nrow(HU_GLM), mean = 6, sd = 2)
-HU_GLM$Dummy2 = rnorm(nrow(HU_GLM), mean = 0, sd = 1)
-for(i in 1:nrow(HU_GLM)){
-  if(HU_GLM$abb[i] == "HUN"){
-    HU_GLM$Dummy[i] = rnorm(1, mean = 0.5, sd = 0.2)
-    HU_GLM$Dummy2[i] = rnorm(1, mean = 0.7, sd = 0.2)
-  } else{
-    HU_GLM$Dummy[i] = rnorm(1, mean = -0.5, sd = 0.2)
-    HU_GLM$Dummy2[i] = rnorm(1, mean = -0.7, sd = 0.2)
-  }
-}
 
 
 # real data with de, rei variable
@@ -649,21 +659,30 @@ dat_list <- list(
   K = 2, # number of mixture component
   N = nrow(HU_GLM),
   LW = HU_GLM$LWidth,
-  de = HU_GLM$Dummy,
-  rei = HU_GLM$Dummy2
+  de = HU_GLM$Depth,
+  rei = HU_GLM$REI
+)
+LW_mix_2var <- cmdstan_model("../stan_file/mixture_regression_2var.stan")
+
+# Run MCMC using the 'sample' method from cmdstan
+LW_2var <- LW_mix_2var$sample(
+  data = dat_list,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 30000,
+  iter_sampling = 2000,
+  adapt_delta = 0.99
 )
 
-LW_mix_2var <- stan( file = "../stan_file/mixture_regression_2var.stan",
-                         data=dat_list, chains=4, cores=4,
-                         iter = 2000,
-                         warmup = 1500,
-                         control=list(adapt_delta=0.99,
-                                      max_treedepth = 15))
+LW_2var$diagnostic_summary()
+# trace plot
+LW_2var$draws() %>% mcmc_trace()
 
-dashboard(LW_mix_2var)
-precis(LW_mix_2var, depth = 2)
-pairs(LW_mix_2var, pars = c("brei1", "brei2", "bde1", "bde2"))
+# dashboard(LW_mix_2var)
+precis(LW_2var, depth = 2)
 
+LW_2var$draws(format = "df")
+bayesplot::mcmc_scatter(LW_2var$draws(c("alpha[1]", "alpha[2]")), alpha = 0.3)
 
 #' In general, the mixture model with explain variable is really hard for the MCMC to walk around the posterior space
 #' Change to pure mu model to find the mixing proportion first
