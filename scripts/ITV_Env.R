@@ -499,7 +499,9 @@ HU_ave %>%
          Runoff = scale(runoff)[, 1],
          Perci = scale(perci)[, 1],
          Air = scale(air_exposure)[, 1],
-         Sed = (sed_mean - mean(sed_mean, na.rm = TRUE))/ sd(sed_mean, na.rm = TRUE), .keep = "unused") -> HU_GLM
+         Sed = (sed_mean - mean(sed_mean, na.rm = TRUE))/ sd(sed_mean, na.rm = TRUE), .keep = "unused") %>%
+         mutate(ID = match(Location, unique(Location))) -> HU_GLM
+
 
 # Sediment are set to three categories + "0" for NA subtidal site
 #for(i in 1:nrow(HU_GLM)){
@@ -588,7 +590,6 @@ LW_mix_mod <- cmdstan_model("../stan_file/mixture_regression_mu.stan")
 # Run MCMC using the 'sample' method from cmdstan
 LW_mix <- LW_mix_mod$sample(
   data = dat_list,
-  seed = 568,
   chains = 4,
   parallel_chains = 4,
   iter_warmup = 6000,
@@ -600,89 +601,107 @@ LW_mix <- LW_mix_mod$sample(
 # dashboard(LW_mix)
 precis(LW_mix, depth = 2)
 
-
+ss = HU_GLM$Sed
+ss[10] = 1.43
+ss[11] = 0.7
+ss[12] = 0.5
+ss[13] = 1.0
+ss[14] = 0.5
+ss[15] = 1.2
+ss[16] = 0.3
+ss[17] = 0.4
+ss[18] = 1.5
+ss[19] = 0.4
 # real data with rei variable
 dat_list <- list(
   K = 2, # number of mixture component
   N = nrow(HU_GLM),
   LW = HU_GLM$LWidth,
-  rei = HU_GLM$REI)
+  rei = ss)
 
+LW_mix_rei <- cmdstan_model("../stan_file/mixture_regression_rei.stan")
 # The model apply here uses the trick of non-exchangeable prior to break the labeling degeneracy
-LW_mix_rei <- stan( file = "../stan_file/mixture_regression_rei.stan",
-                    data=dat_list, chains=4, cores=4,
-                    iter = 2000,
-                    warmup = 1500,
-                    control=list(adapt_delta=0.99,
-                                 max_treedepth = 10))
-#+ Leaf width output with one explained variable, relative exposure index (rei)
-# dashboard(LW_mix_rei)
-precis(LW_mix_rei, depth = 2)
-
-
-HU_GLM$Dummy = rnorm(nrow(HU_GLM), mean = 6, sd = 2)
-HU_GLM$Dummy2 = rnorm(nrow(HU_GLM), mean = 0, sd = 1)
-for(i in 1:nrow(HU_GLM)){
-  if(HU_GLM$abb[i] == "HUN"){
-    HU_GLM$Dummy[i] = rnorm(1, mean = 0.5, sd = 0.2)
-    HU_GLM$Dummy2[i] = rnorm(1, mean = 0.7, sd = 0.2)
-  } else{
-    HU_GLM$Dummy[i] = rnorm(1, mean = -0.5, sd = 0.2)
-    HU_GLM$Dummy2[i] = rnorm(1, mean = -0.7, sd = 0.2)
-  }
-}
-
-
-# real data with depth variable
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = nrow(HU_GLM),
-  LW = HU_GLM$LWidth,
-  rei = HU_GLM$Dummy
+LW_rei <- LW_mix_rei$sample(
+  data = dat_list,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 10000,
+  iter_sampling = 2000,
+  adapt_delta = 0.99
 )
 
-# The model apply here uses the trick of non-exchangeable prior to break the labeling degeneracy
-LW_mix_de <- stan( file = "../stan_file/mixture_regression_rei.stan",
-                    data=dat_list, chains=4, cores=4,
-                    iter = 2000,
-                    warmup = 1500,
-                    control=list(adapt_delta=0.99,
-                                 max_treedepth = 10))
+LW_rei$diagnostic_summary()
+# trace plot
 
-#+ Leaf width output with one explained variable, depth
-# dashboard(LW_mix_de)
-precis(LW_mix_de, depth = 2)
+LW_rei$draws() %>% mcmc_trace()
 
+precis(LW_rei, depth = 2)
 
 # real data with de, rei variable
 dat_list <- list(
   K = 2, # number of mixture component
+  V = 2, # number of covariates
   N = nrow(HU_GLM),
   LW = HU_GLM$LWidth,
-  de = HU_GLM$Depth,
-  rei = HU_GLM$REI
+  CO = matrix(c(HU_GLM$Depth, HU_GLM$Air), ncol = 2)
 )
-LW_mix_2var <- cmdstan_model("../stan_file/mixture_regression_2var.stan")
+
+LW_mix_2var <- cmdstan_model("../stan_file/mixture_sumtozero.stan")
 
 # Run MCMC using the 'sample' method from cmdstan
 LW_2var <- LW_mix_2var$sample(
   data = dat_list,
   chains = 4,
   parallel_chains = 4,
-  iter_warmup = 30000,
+  iter_warmup = 10000,
   iter_sampling = 2000,
   adapt_delta = 0.99
 )
 
 LW_2var$diagnostic_summary()
 # trace plot
+
 LW_2var$draws() %>% mcmc_trace()
 
 # dashboard(LW_mix_2var)
-precis(LW_2var, depth = 2)
+precis(LW_2var, depth = 3)
 
 LW_2var$draws(format = "df")
 bayesplot::mcmc_scatter(LW_2var$draws(c("alpha[1]", "alpha[2]")), alpha = 0.3)
+
+
+# model only put sediment and impute missing value
+dat_list <- list(
+  K = 2, # number of mixture component
+  N = nrow(HU_GLM),
+  LW = HU_GLM$LWidth,
+  sed = HU_GLM %>%
+    mutate(across(everything(), ~ifelse(is.na(.), 999, .))) %>%
+    dplyr::select(Sed) %>%
+    unlist(), # stan will not accept NAs so using 999 as placeholder.
+  Sed_missidx = c(1:nrow(HU_GLM))[is.na(HU_GLM$Sed) == TRUE]
+)
+
+LW_mix_sed <- cmdstan_model("../stan_file/mixture_sed.stan")
+
+# Run MCMC using the 'sample' method from cmdstan
+LW_sed <- LW_mix_sed$sample(
+  data = dat_list,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 10000,
+  iter_sampling = 2000,
+  adapt_delta = 0.99,
+  max_treedepth = 15,
+  save_warmup = TRUE
+)
+
+LW_sed$diagnostic_summary()
+# trace plot
+
+LW_sed$draws() %>% mcmc_trace()
+
+precis(LW_sed, depth = 3)
 
 #' In general, the mixture model with explain variable is really hard for the MCMC to walk around the posterior space
 #' Change to pure mu model to find the mixing proportion first
@@ -882,6 +901,7 @@ pairs.panels(HUW[, 21:30],
 # First set is for Leaf width
 
 # HUN leaf width explained by all not correlated variables
+
 dat <- list(
   LW = HUN$LWidth,
   Rei = HUN$REI,
@@ -890,16 +910,18 @@ dat <- list(
   Run = HUN$Runoff,
   Per = HUN$Perci,
   Air = HUN$Air,
-  Sed = HUN$Sed)
+  Sed = HUN$Sed,
+  ID = match(HUN$ID, unique(HUN$ID)))
 
 m.nlw1 <- ulam(
   alist(
     LW ~ normal( mu, sigma ),
-    mu <- a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed,
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed,
     Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bAT, bRun, bP, bAir, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    z[ID] ~ dnorm( 0 , 1 ),
+    c(abar, bRei, bD, bAT, bRun, bP, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_a, sigma_S) ~ normal(0, 0.5),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
   control = list(adapt_delta = 0.99),  log_lik = TRUE,
   iter = 8000, warmup = 6000, cmdstan = TRUE
@@ -914,16 +936,18 @@ dat <- list(
   De = HUN$Depth,
   Run = HUN$Runoff,
   Air = HUN$Air,
-  Sed = HUN$Sed)
+  Sed = HUN$Sed,
+  ID = match(HUN$ID, unique(HUN$ID)))
 
 m.nlw2 <- ulam(
   alist(
     LW ~ normal( mu, sigma ),
-    mu <- a + bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed,
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed,
     Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bRun, bAir, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    z[ID] ~ normal(0, 1),
+    c(abar, bRei, bD, bRun, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
   control = list(adapt_delta = 0.99),
   log_lik = TRUE,
@@ -932,16 +956,19 @@ m.nlw2 <- ulam(
 dashboard(m.nlw2)
 precis(m.nlw2, depth = 2)
 
-WAIC(m.nlw1)
-WAIC(m.nlw2)
-# m.nlw1 (Model 1) is preferred 
+rethinking::WAIC(m.nlw1)
+rethinking::WAIC(m.nlw2)
+rethinking::compare(m.nlw1, m.nlw2)
+# WAIC are same for both models (less than 0.01 difference)
+# Choose the simpler model
+# m.nlw2 (Model 2) is preferred 
 
 # Residual check for m.nlw1
-m.nlw1.post <- extract.samples(m.nlw1)
-colMeans(m.nlw1.post$mu) -> m.nlw1.pred
-m.nlw1.pred - HUN$LWidth -> m.nlw1.resd
-plot(m.nlw1.pred, m.nlw1.resd)
-qqplot(m.nlw1.pred, HUN$LWidth)
+m.nlw2.post <- extract.samples(m.nlw2)
+colMeans(m.nlw2.post$mu) -> m.nlw2.pred
+m.nlw2.pred - HUN$LWidth -> m.nlw2.resd
+plot(m.nlw2.pred, m.nlw2.resd)
+qqplot(m.nlw2.pred, HUN$LWidth)
 abline(0, 1, col = 2)
 
 # HUW leaf width explained by all not correlated variables
@@ -950,38 +977,44 @@ dat <- list(
   Rei = HUW$REI,
   De = HUW$Depth,
   Air = HUW$Air,
-  Sed = HUW$Sed)
+  Sed = HUW$Sed,
+  ID = match(HUW$ID, unique(HUW$ID)))
 
 m.wlw1 <- ulam(
   alist(
-    LW ~ normal( mu, sigma ),
-    mu <- a + bRei * Rei + bD * De + bAir * Air + bS * Sed,
-    Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bAir, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    LW ~ normal( mu, sigma),
+    mu <-  abar + z[ID]*sigma_a +  bS * Sed + bRei * Rei  + bD * De + bAir * Air,
+    Sed ~ dnorm(nu, sigma_s),
+    z[ID] ~ dnorm(0, 1),
+    c(abar, bS, bRei, bD, bAir, nu) ~ normal(0, 0.5),
+    c(sigma, sigma_a, sigma_s) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
-  control = list(adapt_delta = 0.99),  log_lik = TRUE,
+  control = list(adapt_delta = 0.99), log_lik = TRUE,
   iter = 8000, warmup = 6000, cmdstan = TRUE
 )
+
 dashboard(m.wlw1)
 precis(m.wlw1, depth = 2)
+
 
 # HUW leaf width explained by higher resolution variables
 dat <- list(
   LW = HUW$LWidth,
   Rei = HUW$REI,
   De = HUW$Depth,
-  Sed = HUW$Sed)
+  Sed = HUW$Sed,
+  ID = match(HUW$ID, unique(HUW$ID)))
 
 m.wlw2 <- ulam(
   alist(
     LW ~ normal( mu, sigma ),
-    mu <- a + bRei * Rei + bD * De + bS * Sed,
+    mu <- abar + z[ID]*sigma_a + bD * De + bRei * Rei + bS * Sed,
     Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    z[ID] ~ normal(abar, sigma_a),
+    c(abar, bRei, bD, bS, nu) ~ normal(0, 0.5),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
   control = list(adapt_delta = 0.99),  log_lik = TRUE,
   iter = 8000, warmup = 6000, cmdstan = TRUE
@@ -989,8 +1022,10 @@ m.wlw2 <- ulam(
 dashboard(m.wlw2)
 precis(m.wlw2, depth = 2)
 
-WAIC(m.wlw1)
-WAIC(m.wlw2)
+
+rethinking::WAIC(m.wlw1)
+rethinking::WAIC(m.wlw2)
+rethinking::compare(m.wlw1, m.wlw2)
 # m.wlw2 (Model 2) is preferred 
 
 m.wlw2.post <- extract.samples(m.wlw2)
@@ -1002,26 +1037,49 @@ qqplot(m.wlw2.pred, HUW$LWidth)
 # extrapolated Leaf width based on model
 
 # Double check the structure of selected model
-# m.nlw1: a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed
-# m.wlw2: a + bRei * Rei + bD * De + bS * Sed
+# m.nlw2: abar + z[ID] * sigma_a + bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed
+# m.wlw2: abar + z[ID] * sigma_a + bD * De + bRei * Rei + bS * Sed
 
 #  Control all variables except mean sediment size
 S_seq = seq(-1, 2.5, length.out = 50)
 S_seq * sd(HU_ave$sed_mean,na.rm = TRUE) + mean(HU_ave$sed_mean, na.rm = TRUE) -> S_org
 
-post <- extract.samples(m.nlw1)
-N_lw_sim <- with( post , sapply( 1:50 ,
-                              function(i) rnorm( 1e3 , a + bRei * mean(HUN$REI) + bD * mean(HUN$Depth) + bAT * mean(HUN$Ave_temp) + bRun * mean(HUN$Runoff) + bP * mean(HUN$Perci) + bAir * mean(HUN$Air) + bS * S_seq[i], sigma )))
+post <- extract.samples(m.nlw2)
+p_link <- function(seq , ID) {
+  mm <- with( post ,
+                   a[, ID] + bRei * mean(HUN$REI) + bD * mean(HUN$Depth) + bRun * mean(HUN$Runoff) + bAir * mean(HUN$Air) + bS * S_seq[seq])
+  # Randomly sample a row index from the post list
+  row_index <- sample(1:8000, 1000)
+  
+  pred <- with(post, sapply(row_index, function(i) rnorm(1, mm[i], sigma[i])))
+  return(pred)
+}
+
+N_lw_sim <- lapply(1:ncol(post$a), function(j) sapply(1:50, function(i) p_link(i, ID = j)))
+
+N_lw <- do.call(rbind, N_lw_sim[1:ncol(post$a)])
+
 
 post <- extract.samples(m.wlw2)
-W_lw_sim <- with( post , sapply( 1:50 ,
-                              function(i) rnorm( 1e3 , a + bRei * mean(HUW$REI) + bD * mean(HUW$Depth) + bS * S_seq[i], sigma)))
+p_link <- function(seq , ID) {
+  mm <- with( post ,
+              a[, ID] + bRei * mean(HUW$REI) + bD * mean(HUW$Depth) + bS * S_seq[seq])
+  # Randomly sample a row index from the post list
+  row_index <- sample(1:8000, 1000)
+  
+  pred <- with(post, sapply(row_index, function(i) rnorm(1, mm[i], sigma[i])))
+  return(pred)
+}
 
-data.frame(LW = c(colMeans(N_lw_sim),colMeans(W_lw_sim)),
-           Low = c(apply(N_lw_sim, 2, PI)[1, ], 
-                   apply(W_lw_sim, 2, PI)[1, ]),
-           High = c(apply(N_lw_sim, 2, PI)[2, ],
-                    apply(W_lw_sim, 2, PI)[2, ]),
+W_lw_sim <- lapply(1:ncol(post$a), function(j) sapply(1:50, function(i) p_link(i, ID = j)))
+
+W_lw <- do.call(rbind, W_lw_sim[1:ncol(post$a)])
+
+data.frame(LW = c(colMeans(N_lw), colMeans(W_lw)),
+           Low = c(apply(N_lw, 2, PI)[1, ], 
+                   apply(W_lw, 2, PI)[1, ]),
+           High = c(apply(N_lw, 2, PI)[2, ],
+                    apply(W_lw, 2, PI)[2, ]),
            Sed = rep(S_org, times = 2),
            Abb = c(rep("HUN", 50), rep("HUW", 50))) %>%
   ggplot() +
@@ -1029,7 +1087,7 @@ data.frame(LW = c(colMeans(N_lw_sim),colMeans(W_lw_sim)),
   geom_ribbon(aes(x = Sed, ymin = Low, ymax = High, color = Abb), , linetype = 2, alpha = 0.1) +
   scale_color_manual(values = c("#009E73", "#E69F00")) +
   labs(y = "Simulated leaf width (mm)",
-       x = "Mean sediment size (mm)",
+       x = expression(paste("Mean sediment size (", mu, "m)")),
        color = "Growth form") + 
   theme_classic() -> LW_sed
 LW_sed
@@ -1048,16 +1106,18 @@ dat <- list(
   Run = HUN$Runoff,
   Per = HUN$Perci,
   Air = HUN$Air,
-  Sed = HUN$Sed)
+  Sed = HUN$Sed,
+  ID = match(HUN$ID, unique(HUN$ID)))
 
 m.nrd1 <- ulam(
   alist(
     Rd ~ normal( mu, sigma ),
-    mu <- a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed,
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed,
     Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bAT, bRun, bP, bAir, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    z[ID] ~ dnorm( 0 , 1 ),
+    c(abar, bRei, bD, bAT, bRun, bP, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_a, sigma_S) ~ normal(0, 0.5),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
   control = list(adapt_delta = 0.99),  log_lik = TRUE,
   iter = 8000, warmup = 6000, cmdstan = TRUE
@@ -1072,16 +1132,18 @@ dat <- list(
   De = HUN$Depth,
   Run = HUN$Runoff,
   Air = HUN$Air,
-  Sed = HUN$Sed)
+  Sed = HUN$Sed,
+  ID = match(HUN$ID, unique(HUN$ID)))
 
 m.nrd2 <- ulam(
   alist(
     Rd ~ normal( mu, sigma ),
-    mu <- a + bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed,
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed,
     Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bRun, bAir, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    z[ID] ~ dnorm( 0 , 1 ),
+    c(abar, bRei, bD, bRun, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
   control = list(adapt_delta = 0.99),  log_lik = TRUE,
   iter = 8000, warmup = 6000, cmdstan = TRUE
@@ -1089,15 +1151,16 @@ m.nrd2 <- ulam(
 dashboard(m.nrd2)
 precis(m.nrd2, depth = 2)
 
-WAIC(m.nrd1)
-WAIC(m.nrd2)
-# m.nrd1 (Model 1) is preferred 
+rethinking::WAIC(m.nrd1)
+rethinking::WAIC(m.nrd2)
+rethinking::compare(m.nrd1, m.nrd2)
+# m.nrd2 (Model 2) is preferred. The difference is tiny, but m.nrd2 is still the better and simpler model
 
-m.nrd1.post <- extract.samples(m.nrd1)
-colMeans(m.nrd1.post$mu) -> m.nrd1.pred
-m.nrd1.pred - HUN$Rdia -> m.nrd1.resd
-plot(m.nrd1.pred, m.nrd1.resd)
-qqplot(m.nrd1.pred, HUN$Rdia)
+m.nrd2.post <- extract.samples(m.nrd2)
+colMeans(m.nrd2.post$mu) -> m.nrd2.pred
+m.nrd2.pred - HUN$Rdia -> m.nrd2.resd
+plot(m.nrd2.pred, m.nrd2.resd)
+qqplot(m.nrd2.pred, HUN$Rdia)
 
 # HUW Rhizome diameter explained by all not correlated variables
 dat <- list(
@@ -1105,16 +1168,18 @@ dat <- list(
   Rei = HUW$REI,
   De = HUW$Depth,
   Air = HUW$Air,
-  Sed = HUW$Sed)
+  Sed = HUW$Sed,
+  ID = match(HUW$ID, unique(HUW$ID)))
 
 m.wrd1 <- ulam(
   alist(
     Rd ~ normal( mu, sigma ),
-    mu <- a + bRei * Rei + bD * De + bAir * Air + bS * Sed,
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bAir * Air + bS * Sed,
     Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bAir, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    z[ID] ~ normal(0, 1),
+    c(abar, bRei, bD, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
   control = list(adapt_delta = 0.99),  log_lik = TRUE,
   iter = 8000, warmup = 6000, cmdstan = TRUE
@@ -1127,16 +1192,18 @@ dat <- list(
   Rd = HUW$Rdia,
   Rei = HUW$REI,
   De = HUW$Depth,
-  Sed = HUW$Sed)
+  Sed = HUW$Sed, 
+  ID = match(HUW$ID, unique(HUW$ID)))
 
 m.wrd2 <- ulam(
   alist(
     Rd ~ normal( mu, sigma ),
-    mu <- a + bRei * Rei + bD * De + bS * Sed,
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bS * Sed,
     Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    z[ID] ~ normal(0, 1),
+    c(abar, bRei, bD, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
   control = list(adapt_delta = 0.99),  log_lik = TRUE,
   iter = 8000, warmup = 6000, cmdstan = TRUE
@@ -1144,9 +1211,10 @@ m.wrd2 <- ulam(
 dashboard(m.wrd2)
 precis(m.wrd2, depth = 2)
 
-WAIC(m.wrd1)
-WAIC(m.wrd2)
-# There is only 0.5 difference in WAIC, chose the simpler model
+rethinking::WAIC(m.wrd1)
+rethinking::WAIC(m.wrd2)
+rethinking::compare(m.wrd1, m.wrd2)
+# There is 0.9 difference in WAIC, chose the simpler model
 # m.wrd2 (Model 2) is preferred 
 
 m.wrd2.post <- extract.samples(m.wrd2)
@@ -1159,26 +1227,48 @@ qqplot(m.wrd2.pred, HUW$Rdia)
 # extrapolated Rhizome diameter based on model
 
 # Double check the structure of selected model
-# m.nrd1: a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed
-# m.wrd2: a + bRei * Rei + bD * De + bS * Sed
+# m.nrd2: abar + z[ID] * sigma_a + +bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed
+# m.wrd2: abar + z[ID] * sigma_a + bRei * Rei + bD * De + bS * Sed
 
 #  Control all variables except mean sediment size
 S_seq = seq(-1, 2.5, length.out = 50)
 S_seq * sd(HU_ave$sed_mean,na.rm = TRUE) + mean(HU_ave$sed_mean, na.rm = TRUE) -> S_org
 
-post <- extract.samples(m.nrd1)
-N_rd_sim <- with( post , sapply( 1:50 ,
-                                 function(i) rnorm( 1e3 , a + bRei * mean(HUN$REI) + bD * mean(HUN$Depth) + bAT * mean(HUN$Ave_temp) + bRun * mean(HUN$Runoff) + bP * mean(HUN$Perci) + bAir * mean(HUN$Air) + bS * S_seq[i], sigma )))
+post <- extract.samples(m.nrd2)
+p_link <- function(seq , ID) {
+  mm <- with( post ,
+              a[, ID] + bRei * mean(HUN$REI) + bD * mean(HUN$Depth) + bRun * mean(HUN$Runoff) + bAir * mean(HUN$Air) + bS * S_seq[seq])
+  # Randomly sample a row index from the post list
+  row_index <- sample(1:8000, 1000)
+  
+  pred <- with(post, sapply(row_index, function(i) rnorm(1, mm[i], sigma[i])))
+  return(pred)
+}
+
+N_rd_sim <- lapply(1:ncol(post$a), function(j) sapply(1:50, function(i) p_link(i, ID = j)))
+
+N_rd <- do.call(rbind, N_rd_sim[1:ncol(post$a)])
 
 post <- extract.samples(m.wrd2)
-W_rd_sim <- with( post , sapply( 1:50 ,
-                                 function(i) rnorm( 1e3 , a + bRei * mean(HUW$REI) + bD * mean(HUW$Depth) + bS * S_seq[i], sigma)))
+p_link <- function(seq , ID) {
+  mm <- with( post ,
+              a[, ID] + bRei * mean(HUW$REI) + bD * mean(HUW$Depth) + bS * S_seq[seq])
+  # Randomly sample a row index from the post list
+  row_index <- sample(1:8000, 1000)
+  
+  pred <- with(post, sapply(row_index, function(i) rnorm(1, mm[i], sigma[i])))
+  return(pred)
+}
 
-data.frame(Rd = c(colMeans(N_rd_sim),colMeans(W_rd_sim)),
-           Low = c(apply(N_rd_sim, 2, PI)[1, ], 
-                   apply(W_rd_sim, 2, PI)[1, ]),
-           High = c(apply(N_rd_sim, 2, PI)[2, ],
-                    apply(W_rd_sim, 2, PI)[2, ]),
+W_rd_sim <- lapply(1:ncol(post$a), function(j) sapply(1:50, function(i) p_link(i, ID = j)))
+
+W_rd <- do.call(rbind, W_rd_sim[1:ncol(post$a)])
+
+data.frame(Rd = c(colMeans(N_rd),colMeans(W_rd)),
+           Low = c(apply(N_rd, 2, PI)[1, ], 
+                   apply(W_rd, 2, PI)[1, ]),
+           High = c(apply(N_rd, 2, PI)[2, ],
+                    apply(W_rd, 2, PI)[2, ]),
            Sed = rep(S_org, times = 2),
            Abb = c(rep("HUN", 50), rep("HUW", 50))) %>%
   ggplot() +
@@ -1186,12 +1276,12 @@ data.frame(Rd = c(colMeans(N_rd_sim),colMeans(W_rd_sim)),
   geom_ribbon(aes(x = Sed, ymin = Low, ymax = High, color = Abb), , linetype = 2, alpha = 0.1) +
   scale_color_manual(values = c("#009E73", "#E69F00")) +
   labs(y = "Simulated Rhizome diameter (mm)",
-       x = "Mean sediment size (mm)",
+       x = expression(paste("Mean sediment size (", mu, "m)")),
        color = "Growth form") + 
   theme_classic() -> RD_sed
 RD_sed
 
-ggsave(Rd_sed, filename = "../plots/RD_sed_effect.png",
+ggsave(RD_sed, filename = "../plots/RD_sed.png",
        width = 20, height = 15, unit = "cm")
 
 ggarrange(LW_sed, RD_sed, common.legend = TRUE, legend = "right") %>%
@@ -1212,23 +1302,25 @@ pairs.panels(HU_GLM[, 21:30],
 
 # HU Above ground biomass per shoot explained by all not correlated variables
 dat <- list(
-  Adm = HU_GLM$ADM_S,
+  Adm = log(HU_GLM$ADM_S),
   Rei = HU_GLM$REI,
   De = HU_GLM$Depth,
   AveT = HU_GLM$Ave_temp,
   Run = HU_GLM$Runoff,
   Per = HU_GLM$Perci,
   Air = HU_GLM$Air,
-  Sed = HU_GLM$Sed)
+  Sed = HU_GLM$Sed,
+  ID = HU_GLM$ID)
 
 m.adm1 <- ulam(
   alist(
-    Adm ~ lognormal(mu, sigma),
-    mu <- a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed,
+    Adm ~ normal(mu, sigma),
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed,
     Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bAT, bRun, bP, bAir, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    z[ID] ~ normal(0, 1),
+    c(abar,bRei, bD, bAT, bRun, bP, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
   control = list(adapt_delta = 0.99),  log_lik = TRUE,
   iter = 8000, warmup = 6000, cmdstan = TRUE
@@ -1238,21 +1330,23 @@ precis(m.adm1, depth = 2)
 
 # HU Above ground biomass per shoot explained by higher resolution variables
 dat <- list(
-  Adm = HU_GLM$ADM_S,
+  Adm = log(HU_GLM$ADM_S),
   Rei = HU_GLM$REI,
   De = HU_GLM$Depth,
   Run = HU_GLM$Runoff,
   Air = HU_GLM$Air,
-  Sed = HU_GLM$Sed)
+  Sed = HU_GLM$Sed,
+  ID = HU_GLM$ID)
 
 m.adm2 <- ulam(
   alist(
-    Adm ~ lognormal(mu, sigma),
-    mu <- a + bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed,
+    Adm ~ normal(mu, sigma),
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed,
     Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bRun, bAir, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    z[ID] ~ normal(0, 1),
+    c(abar, bRei, bD, bRun, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
   control = list(adapt_delta = 0.99),  log_lik = TRUE,
   iter = 8000, warmup = 6000, cmdstan = TRUE
@@ -1260,36 +1354,40 @@ m.adm2 <- ulam(
 dashboard(m.adm2)
 precis(m.adm2, depth = 2)
 
-WAIC(m.adm1)
-WAIC(m.adm2)
-# m.adm2 (Model 2) is preferred 
+rethinking::WAIC(m.adm1)
+rethinking::WAIC(m.adm2)
+rethinking::compare(m.adm1, m.adm2)
+# There is only 0.2 difference in WAIC value
+# Choose the simpler model, m.adm2 (Model 2)
 
 m.adm2.post <- extract.samples(m.adm2)
-exp(colMeans(m.adm2.post$mu)) -> m.adm2.pred
-m.adm2.pred - HU_GLM$ADM_S -> m.adm2.resd
+colMeans(m.adm2.post$mu) -> m.adm2.pred
+m.adm2.pred - log(HU_GLM$ADM_S) -> m.adm2.resd
 plot(m.adm2.pred, m.adm2.resd)
-qqplot(m.adm2.pred, HU_GLM$ADM_S)
+qqplot(m.adm2.pred, log(HU_GLM$ADM_S))
 abline(a = 0, b = 1)
 
 # HU Below ground biomass per shoot explained by all not correlated variables
 dat <- list(
-  Bdm = HU_GLM$BDM_S,
+  Bdm = log(HU_GLM$BDM_S),
   Rei = HU_GLM$REI,
   De = HU_GLM$Depth,
   AveT = HU_GLM$Ave_temp,
   Run = HU_GLM$Runoff,
   Per = HU_GLM$Perci,
   Air = HU_GLM$Air,
-  Sed = HU_GLM$Sed)
+  Sed = HU_GLM$Sed,
+  ID = HU_GLM$ID)
 
 m.bdm1 <- ulam(
   alist(
-    Bdm ~ lognormal( mu, sigma ),
-    mu <- a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed,
+    Bdm ~ normal( mu, sigma ),
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed,
     Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bAT, bRun, bP, bAir, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    z[ID] ~ normal(0, 1),
+    c(abar,bRei, bD, bAT, bRun, bP, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
   control = list(adapt_delta = 0.99),  log_lik = TRUE,
   iter = 8000, warmup = 6000, cmdstan = TRUE
@@ -1299,21 +1397,23 @@ precis(m.bdm1, depth = 2)
 
 # HU Below ground biomass per shoot explained by higher resolution variables
 dat <- list(
-  Bdm = HU_GLM$BDM_S,
+  Bdm = log(HU_GLM$BDM_S),
   Rei = HU_GLM$REI,
   De = HU_GLM$Depth,
   Run = HU_GLM$Runoff,
   Air = HU_GLM$Air,
-  Sed = HU_GLM$Sed)
+  Sed = HU_GLM$Sed,
+  ID = HU_GLM$ID)
 
 m.bdm2 <- ulam(
   alist(
-    Bdm ~ lognormal(mu, sigma),
-    mu <- a + bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed,
+    Bdm ~ normal(mu, sigma),
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed,
     Sed ~ dnorm(nu, sigma_S),
-    a ~ normal(1, 1),
-    c(bRei, bD, bRun, bAir, bS, nu) ~ normal(0, 1),
-    c(sigma, sigma_S) ~ exponential(1)
+    z[ID] ~ normal(0, 1),
+    c(abar, bRei, bD, bRun, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
   ), data = dat, chains = 4, core = 4, 
   control = list(adapt_delta = 0.99),  log_lik = TRUE,
   iter = 8000, warmup = 6000, cmdstan = TRUE
@@ -1321,17 +1421,17 @@ m.bdm2 <- ulam(
 dashboard(m.bdm2)
 precis(m.bdm2, depth = 2)
 
-
-WAIC(m.bdm1)
-WAIC(m.bdm2)
-# The difference of WAIC is only 0.2, chose less complex model
+rethinking::WAIC(m.bdm1)
+rethinking::WAIC(m.bdm2)
+rethinking::compare(m.bdm1, m.bdm2)
+# The difference of WAIC is only 0.1, chose less complex model
 # m.bdm2 (Model 2) is preferred 
 
 m.bdm2.post <- extract.samples(m.bdm2)
-exp(colMeans(m.bdm2.post$mu)) -> m.bdm2.pred
-m.bdm2.pred - HU_GLM$BDM_S -> m.bdm2.resd
+colMeans(m.bdm2.post$mu) -> m.bdm2.pred
+m.bdm2.pred - log(HU_GLM$BDM_S) -> m.bdm2.resd
 plot(m.bdm2.pred, m.bdm2.resd)
-qqplot(m.bdm2.pred, HU_GLM$BDM_S)
+qqplot(m.bdm2.pred, log(HU_GLM$BDM_S))
 abline(a = 0, b = 1, col = "red")
 
 #' Fish biomass index using fish PCA combination
@@ -1406,7 +1506,7 @@ aa %>% ggexport(filename = "../plots/Biomassindex.png",
 #### Blue carbon ####
 
 HU_ave %>%
-  select(SampleID:abb,ADM_S, BDM_S, LWidth, CanopyH) %>%
+  dplyr::select(SampleID:abb,ADM_S, BDM_S, LWidth, CanopyH) %>%
   mutate(Biomass = ADM_S + BDM_S,
          CanopyC = CanopyH * LWidth, .keep = "unused") -> HU_car
 
@@ -1435,6 +1535,7 @@ fit_car <- ulam(
 dashboard(fit_car)
 precis(fit_car, depth = 3)
 precis(fit_car, depth = 3) -> mix_coef
+extract.samples(fit_car)
 
 sigmas <- c(mix_coef[9,1], mix_coef[10,1]) # standard deviations
 Rho<- matrix(c(1, mix_coef[6,1], mix_coef[7,1], 1), nrow=2) # correlation matrix
@@ -1445,8 +1546,8 @@ data.frame(N = rmvnorm(10000, c(mix_coef[1, 1],
            W = rmvnorm(10000, c(mix_coef[1, 1] + mix_coef[3, 1],
                                 mix_coef[2, 1] + mix_coef[4, 1]), Sigma)) -> car_sim
 
-pick_5 <- sample(1:10000, 5000, replace = FALSE)
 pick_3 <- sample(1:10000, 3000, replace = FALSE)
+pick_5 <- sample(1:10000, 5000, replace = FALSE)
 pick_7 <- sample(1:10000, 7000, replace = FALSE)
 
 colnames(car_sim) = c("NCc", "NBi", "WCc", "WBi")
@@ -1884,7 +1985,7 @@ fit1_test.resids <- createDHARMa(simulatedResponse = t(preds),
 fit1_test.resids %>% plot()
 fit1_test.resids %>% testDispersion()
 
-# example of ordered categorical expained variables from rethinking package
+# example of ordered categorical explained variables from rethinking package
 
 data(Trolley)
 d <- Trolley
@@ -2018,3 +2119,37 @@ m14.6 <- ulam(
 
 precis( m14.6 , depth=3 )
 rethinking::stancode(m14.6)
+
+data(KosterLeckie)
+kl_data <- list(
+                 N = nrow(kl_dyads),
+                 N_households = max(kl_dyads$hidB),
+                 did = kl_dyads$did,
+                 hidA = kl_dyads$hidA,
+                 hidB = kl_dyads$hidB,
+                 giftsAB = kl_dyads$giftsAB,
+                 giftsBA = kl_dyads$giftsBA
+)
+
+m14.7 <- ulam(
+  alist(
+    giftsAB ~ poisson( lambdaAB ),
+    giftsBA ~ poisson( lambdaBA ),
+    log(lambdaAB) <- a + gr[hidA,1] + gr[hidB,2] + d[did,1] ,
+    log(lambdaBA) <- a + gr[hidB,1] + gr[hidA,2] + d[did,2] ,
+    a ~ normal(0,1),
+    ## gr matrix of varying effects
+    vector[2]:gr[N_households] ~ multi_normal(0,Rho_gr,sigma_gr),
+    Rho_gr ~ lkj_corr(4),
+    sigma_gr ~ exponential(1),
+    ## dyad effects
+    transpars> matrix[N,2]:d <-
+      compose_noncentered( rep_vector(sigma_d,2) , L_Rho_d , z ),
+    matrix[2,N]:z ~ normal( 0 , 1 ),
+    cholesky_factor_corr[2]:L_Rho_d ~ lkj_corr_cholesky( 8 ),
+    sigma_d ~ exponential(1),
+    ## compute correlation matrix for dyads
+    gq> matrix[2,2]:Rho_d <<- Chol_to_Corr( L_Rho_d )
+  ), data=kl_data , chains=4 , cores=4 , iter=2000 )
+
+stancode(m14.7)

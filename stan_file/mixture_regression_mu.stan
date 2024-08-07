@@ -15,7 +15,7 @@ model {
   
   vector[K] log_theta = log(theta);  // cache log calculation
   sigma ~ lognormal(0, 2);
-  mu ~ normal(0, 10);
+  mu ~ normal(1, 0.5);
 
   for (n in 1:N) {
     vector[K] lps = log_theta;

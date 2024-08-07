@@ -6,12 +6,10 @@ data {
 }
 
 parameters {
-  real brei1;
+  //real brei1;
   real brei2;
   
-  //real alpha;
-  //real<upper = alpha> gamma;
-  ordered[K] alpha;
+  positive_ordered[K] alpha;
   
   simplex[K] theta; // mixture proportion
   real<lower=0> sigma1;  // dispersion parameter
@@ -19,35 +17,28 @@ parameters {
   
 }
 transformed parameters {
-  real<lower = 0, upper = 1> theta1;
-  real<lower = 0, upper = 1> theta2;
-  theta1 = theta[1];
-  theta2 = theta[2];
 }
 
 model {
   // priors
-  target += normal_lpdf(brei1 | 0, 1);
+  //target += normal_lpdf(brei1 | 0, 1);
   target += normal_lpdf(brei2 | 0, 1);
   
   target += normal_lpdf(alpha | 1, 0.5);
-  //target += normal_lpdf(gamma | 1, 0.5) - 
-  //normal_lcdf(alpha | 1, 0.5);
-  
+
   target += lognormal_lpdf(sigma1 | 0, 1) - 
     normal_lccdf(0 | 0, 1);
   target += lognormal_lpdf(sigma2 | 0, 1) -
     normal_lccdf(0 | 0, 1);
   
-  target += beta_lpdf(theta1 | 1, 1);
-  target += beta_lpdf(theta2 | 1, 1);
+  target += beta_lpdf(theta | 1, 1);
   
   // likelihood
   for(n in 1:N)
-    target += log_sum_exp(log(theta1) +
-                            lognormal_lpdf(LW[n] | alpha[1] + rei[n] * brei1, sigma1),
-                          log(theta2) +
-                            lognormal_lpdf(LW[n] | alpha[2] + rei[n] * brei2, sigma2));
+    target += log_sum_exp(log(theta[1]) +
+                            normal_lpdf(LW[n] | alpha[1], sigma1),
+                          log(theta[2]) +
+                            normal_lpdf(LW[n] | alpha[2] + rei[n] * brei2, sigma2));
 }
 
 //generated quantities{
