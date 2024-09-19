@@ -12,24 +12,29 @@
 
 #+  Read library, include = FALSE
 #### Read Libaray ####
+library(tidyverse)
 library(rstan)
+library(MASS)
 library(rethinking)
-library(lme4)
+library(mvtnorm) # produce multinomial model simulation
+library(tidybayes)
+library(bayesplot) # MCMC diagnostics
 library(cluster)    # clustering algorithms
 library(factoextra) # clustering algorithms & visualization
-library(gridExtra) # arranging plots
-library(psych) # pairwise scatter plot
-library(DHARMa)     #for residual diagnostics
-library(emmeans)
+library(pcaMethods) # Bayesian PCA, enable missing value impute
+
+# library(DHARMa)     #for residual diagnostics
+# library(emmeans)
+# Plotting
 library(ggplot2)
 library(ggpubr)
 library(viridis)
 library(hrbrthemes)
-library(MASS)
-library(tidyverse)
-library(mvtnorm)
-library(tidybayes)
-library(bayesplot)
+library(gridExtra) # arranging plots
+library(psych) # pairwise scatter plot
+library(ggrepel)
+library(ggpp)
+
 
 #+ Source functions from Functions.R 
 #### Input functions  ####
@@ -63,7 +68,7 @@ trait_dat %>%
   # match trait data with environmental variables based on sample location 
   left_join(env_var, by = join_by("SampleID" == "location")) %>%
   # remove descriptive variables
-  select(!ends_with("photo.") & !contains("note") &
+  dplyr::select(!ends_with("photo.") & !contains("note") &
            !Pack & 
            !Aboveground_dry_mass3 &
            !Belowground_dry_mass3 &
@@ -91,7 +96,7 @@ trait_dat %>%
   # Filter trait NA entry
   filter_at(vars(-Gravel, -Sand, -Silt, -Clay, -sed_mean), all_vars(!is.na(.))) %>%
   # arrange column
-  select(SampleID:abb, ADM_S, BDM_S,
+  dplyr::select(SampleID:abb, ADM_S, BDM_S,
          CanopyH:ILength, trials,
          total_REI:perci) -> trait_env_long
 head(trait_env_long)
@@ -102,7 +107,7 @@ trait_dat %>%
   # match trait data with environmental variables based on sample location 
   left_join(env_var, by = join_by("SampleID" == "location")) %>%
   # remove descriptive variables
-  select(!ends_with("photo.") & !contains("note") &
+  dplyr::select(!ends_with("photo.") & !contains("note") &
            !Pack & 
            !Aboveground_dry_mass3 &
            !Belowground_dry_mass3 &
@@ -123,7 +128,7 @@ trait_dat %>%
   mutate(ADM_S = ADM/Shoot_number,
          BDM_S = BDM/Shoot_number, .keep = "unused") %>%
   # arrange column
-  select(SampleID:abb, ADM_S, BDM_S, CanopyH:ILength,
+  dplyr::select(SampleID:abb, ADM_S, BDM_S, CanopyH:ILength,
          total_REI:perci) -> trait_env_ave
 head(trait_env_ave)
 colnames(trait_env_ave)
@@ -163,11 +168,11 @@ ggarrange(LW_plot, RD_plot, legend = "right", common.legend = TRUE) %>%
            width = 4000, height = 1600, res= 500)
 
 # CV
-HU_long %>% select(11:16) %>% colMeans(., na.rm = TRUE) -> mean1
-HU_long %>% select(11:16) %>% apply(2, sd, na.rm = TRUE) -> sd1
+HU_long %>% dplyr::select(11:16) %>% colMeans(., na.rm = TRUE) -> mean1
+HU_long %>% dplyr::select(11:16) %>% apply(2, sd, na.rm = TRUE) -> sd1
 
-HU_ave %>% select(9:10) %>% colMeans(., na.rm = TRUE) -> mean2
-HU_ave %>% select(9:10) %>% apply(2, sd, na.rm = TRUE) -> sd2
+HU_ave %>% dplyr::select(9:10) %>% colMeans(., na.rm = TRUE) -> mean2
+HU_ave %>% dplyr::select(9:10) %>% apply(2, sd, na.rm = TRUE) -> sd2
 
 HU_CV <- t((cbind(rbind(mean1, sd1),
                   rbind(mean2, sd2)))) %>%
@@ -194,11 +199,11 @@ trait_env_long[trait_env_long$abb=="HO", ] -> HO_long
 # Average table
 trait_env_ave[trait_env_ave$abb=="HO", ] -> HO_ave
 
-HO_long %>% select(11:16) %>% colMeans(., na.rm = TRUE) -> mean1
-HO_long %>% select(11:16) %>% apply(2, sd, na.rm = TRUE) -> sd1
+HO_long %>% dplyr::select(11:16) %>% colMeans(., na.rm = TRUE) -> mean1
+HO_long %>% dplyr::select(11:16) %>% apply(2, sd, na.rm = TRUE) -> sd1
 
-HO_ave %>% select(9:10) %>% colMeans(., na.rm = TRUE) -> mean2
-HO_ave %>% select(9:10) %>% apply(2, sd, na.rm = TRUE) -> sd2
+HO_ave %>% dplyr::select(9:10) %>% colMeans(., na.rm = TRUE) -> mean2
+HO_ave %>% dplyr::select(9:10) %>% apply(2, sd, na.rm = TRUE) -> sd2
 
 HO_CV <- t((cbind(rbind(mean1, sd1),
                   rbind(mean2, sd2)))) %>%
@@ -223,7 +228,7 @@ ggsave(filename = "../plots/HO_CV_plot.png", plot = CV_plot,
 
 # Use average repeated measurements data to create a cluster data for HU and remove NA
 HU_ave %>%
-  select(SampleID, abb, ADM_S:ILength) %>%
+  dplyr::select(SampleID, abb, ADM_S:ILength) %>%
   na.omit() -> HU_clu_data
 
 # Calculate distance matrix
@@ -309,7 +314,7 @@ grid.arrange(p1, p2, p3, nrow = 2)
 
 HU_ave %>%
   mutate(Cluster = k2$cluster) %>%
-  select(SampleID, abb, Cluster) %>%
+  dplyr::select(SampleID, abb, Cluster) %>%
   head(20)
 
 # Check for outliers and grouping condition of 3 different cluster numbers (2, 3, 4)
@@ -366,7 +371,7 @@ grid.arrange(p1, p2, p3, nrow = 2)
 #' K-means generally closer to observational classes (same for k3 and k4)
 #' PAM groups samples  more consistently among different k 
 HU_ave %>%
-  select(SampleID, Location, abb) %>%
+  dplyr::select(SampleID, Location, abb) %>%
   mutate(k2 = k2$cluster,
          k3 = k3$cluster,
          k4 = k4$cluster,
@@ -382,9 +387,65 @@ HU_kmean_pam
 #### HU PCA ####
 # Explanation material: https://personal.utdallas.edu/~herve/abdi-awPCA2010.pdf
 
-# Create data for pca analysis
+# Create data for environmental covariates pva
 HU_ave %>%
-  select(SampleID, abb, ADM_S:ILength) %>%
+  dplyr::select(SampleID, abb, total_REI:ave_temp, sed_mean:perci) -> HU_env
+
+# Environmental covariates Bayesian pca with missing value
+HU_env_pca <- pcaMethods::pca(HU_env[, -c(1, 2)], method = "bpca", scale = "uv", center = TRUE, nPcs = 2)
+
+summary(HU_env_pca)
+
+# loading for each covariates
+loadings <- as.data.frame(loadings(HU_env_pca)) %>%
+  mutate(x0 = rep(0, nrow(.)),
+         y0 = rep(0, nrow(.)))
+# location for each sample
+scores <- as.data.frame(pcaMethods::scores(HU_env_pca)) %>% 
+  mutate(abb = HU_kmean_pam$abb)
+## Get the estimated complete observations
+cObs <- completeObs(HU_env_pca)
+
+# Create a env_bpca plot
+ggplot() +
+  geom_point(data = scores, aes(x = PC1, y = PC2, fill = abb), size = 2.5,
+             shape = 21, stroke = 0.5) +
+  geom_segment(data = loadings, aes(x = x0, y = y0, xend = PC1, yend = PC2), 
+               arrow = arrow(length = unit(0.2, "cm")), color = "black") +
+  geom_text_repel(data = loadings, aes(x = PC1, y = PC2, 
+                                       label = c("Total REI",
+                                                 "Depth",
+                                                 "Air exposure",
+                                                 "Average Temp.",
+                                                 "Mean Sed. size",
+                                                 "Runoff",
+                                                 "Precipitation")),
+                  color = "black", size = 3.5,
+                  position = position_nudge_center(0.2, 0.1, 0, 0)) +
+  scale_fill_manual(values = c(HUN = "#009E73", HUW = "#E69F00")) + 
+  labs(x = "Dim1 (33.3%)", y = "Dim2 (24.6%)", 
+       title = "Enivornmental bpca",
+       fill = "Clusters") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    legend.position = "right",
+    legend.key.size = unit(1, "lines"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    plot.title = element_text(size = 14),
+    panel.grid.minor = element_blank()
+  ) -> p
+ggexport(p, filename = "../plots/Env_bpca.png",
+         width = 2000, height = 1500, res = 300)
+
+
+# Create data for trait pca analysis
+HU_ave %>%
+  dplyr::select(SampleID, abb, ADM_S:ILength) %>%
   na.omit() -> HU_ave1
 
 # PCA analysis with scale and centered observations (samples) of each variables/columns (traits)
@@ -461,7 +522,7 @@ ITV_pca_biplot(HU_ave_pca, HU_kmean_pam$abb, 2) %>%
 #' Try the Jones fish approach. Put four traits in the PCA to see PC1 composition
 
 HU_ave1 %>%
-  select(LLength, LWidth, CanopyH, ADM_S) -> HU_fish
+  dplyr::select(LLength, LWidth, CanopyH, ADM_S) -> HU_fish
 
 HU_fish_pca <- prcomp(HU_fish, 
                        center =  TRUE,
@@ -523,23 +584,23 @@ HU_ave %>%
 # 
 
 HU_GLM %>%
-  select(ADM_S:ILength) -> HU_box
+  dplyr::select(ADM_S:ILength) -> HU_box
 
 HU_GLM %>%
-  select(REI:Sed) -> HU_box_env
+  dplyr::select(REI:Sed) -> HU_box_env
 
 ggplot(data = pivot_longer(HU_box, everything())) +
   geom_boxplot(aes(x = name, y = value))
 # The range of traits are quite different, Below two plots exclude the traits that are too tiny to visualize in this plot
 
 HU_box %>%
-  select(-c(CanopyH, LLength, RLength)) %>%
+  dplyr::select(-c(CanopyH, LLength, RLength)) %>%
   pivot_longer(everything()) %>%
   ggplot() +
   geom_boxplot(aes(x = name, y = value))
 
 HU_box %>%
-  select(LWidth, Rdia) %>%
+  dplyr::select(LWidth, Rdia) %>%
   pivot_longer(everything()) %>%
   ggplot() +
   geom_boxplot(aes(x = name, y = value))
@@ -1434,6 +1495,241 @@ plot(m.bdm2.pred, m.bdm2.resd)
 qqplot(m.bdm2.pred, log(HU_GLM$BDM_S))
 abline(a = 0, b = 1, col = "red")
 
+
+# Combined Leaf width
+
+dat <- list(
+  LW = log(HU_GLM$LWidth),
+  Rei = HU_GLM$REI,
+  De = HU_GLM$Depth,
+  AveT = HU_GLM$Ave_temp,
+  Run = HU_GLM$Runoff,
+  Per = HU_GLM$Perci,
+  Air = HU_GLM$Air,
+  Sed = HU_GLM$Sed,
+  ID = HU_GLM$ID)
+
+m.lw1 <- ulam(
+  alist(
+    LW ~ normal(mu, sigma),
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed,
+    Sed ~ dnorm(nu, sigma_S),
+    z[ID] ~ normal(0, 1),
+    c(abar,bRei, bD, bAT, bRun, bP, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
+  ), data = dat, chains = 4, core = 4, 
+  control = list(adapt_delta = 0.99),  log_lik = TRUE,
+  iter = 8000, warmup = 6000, cmdstan = TRUE
+)
+dashboard(m.lw1)
+precis(m.lw1, depth = 2)
+
+dat <- list(
+  LW = log(HU_GLM$LWidth),
+  Rei = HU_GLM$REI,
+  De = HU_GLM$Depth,
+  Run = HU_GLM$Runoff,
+  Air = HU_GLM$Air,
+  Sed = HU_GLM$Sed,
+  ID = HU_GLM$ID)
+
+m.lw2 <- ulam(
+  alist(
+    LW ~ normal(mu, sigma),
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed,
+    Sed ~ dnorm(nu, sigma_S),
+    z[ID] ~ normal(0, 1),
+    c(abar, bRei, bD, bRun, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
+  ), data = dat, chains = 4, core = 4, 
+  control = list(adapt_delta = 0.99),  log_lik = TRUE,
+  iter = 8000, warmup = 6000, cmdstan = TRUE
+)
+dashboard(m.lw2)
+precis(m.lw2, depth = 2)
+
+rethinking::WAIC(m.lw1)
+rethinking::WAIC(m.lw2)
+rethinking::compare(m.lw1, m.lw2)
+# m.lw2 is better
+
+m.lw2.post <- extract.samples(m.lw2)
+colMeans(m.lw2.post$mu) -> m.lw2.pred
+m.lw2.pred - log(HU_GLM$LWidth) -> m.lw2.resd
+plot(m.lw2.pred, m.lw2.resd)
+qqplot(m.lw2.pred, log(HU_GLM$LWidth))
+abline(a = 0, b = 1, col = "red")
+
+
+# Combined rhizome
+
+dat <- list(
+  Rd = log(HU_GLM$Rdia),
+  Rei = HU_GLM$REI,
+  De = HU_GLM$Depth,
+  AveT = HU_GLM$Ave_temp,
+  Run = HU_GLM$Runoff,
+  Per = HU_GLM$Perci,
+  Air = HU_GLM$Air,
+  Sed = HU_GLM$Sed,
+  ID = HU_GLM$ID)
+
+m.rd1 <- ulam(
+  alist(
+    Rd ~ normal(mu, sigma),
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed,
+    Sed ~ dnorm(nu, sigma_S),
+    z[ID] ~ normal(0, 1),
+    c(abar,bRei, bD, bAT, bRun, bP, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
+  ), data = dat, chains = 4, core = 4, 
+  control = list(adapt_delta = 0.99),  log_lik = TRUE,
+  iter = 8000, warmup = 6000, cmdstan = TRUE
+)
+dashboard(m.rd1)
+precis(m.rd1, depth = 2)
+
+dat <- list(
+  Rd = log(HU_GLM$Rdia),
+  Rei = HU_GLM$REI,
+  De = HU_GLM$Depth,
+  Run = HU_GLM$Runoff,
+  Air = HU_GLM$Air,
+  Sed = HU_GLM$Sed,
+  ID = HU_GLM$ID)
+
+m.rd2 <- ulam(
+  alist(
+    Rd ~ normal(mu, sigma),
+    mu <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bRun * Run + bAir * Air + bS * Sed,
+    Sed ~ dnorm(nu, sigma_S),
+    z[ID] ~ normal(0, 1),
+    c(abar, bRei, bD, bRun, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma, sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
+  ), data = dat, chains = 4, core = 4, 
+  control = list(adapt_delta = 0.99), log_lik = TRUE,
+  iter = 8000, warmup = 6000, cmdstan = TRUE
+)
+Adashboard(m.rd2)
+precis(m.rd2, depth = 2)
+
+rethinking::WAIC(m.rd1)
+rethinking::WAIC(m.rd2)
+rethinking::compare(m.rd1, m.rd2)
+# m.rd1 is better
+
+m.rd1.post <- extract.samples(m.rd1)
+colMeans(m.rd1.post$mu) -> m.rd1.pred
+m.rd1.pred - log(HU_GLM$Rdia) -> m.rd1.resd
+plot(m.rd1.pred, m.rd1.resd)
+qqplot(m.rd1.pred, log(HU_GLM$Rdia))
+abline(a = 0, b = 1, col = "red")
+
+
+
+dat <- list(
+  Lw = log(HU_GLM$LWidth),
+  Rd = log(HU_GLM$Rdia),
+  Rei = HU_GLM$REI,
+  De = HU_GLM$Depth,
+  Run = HU_GLM$Runoff,
+  Air = HU_GLM$Air,
+  Sed = HU_GLM$Sed,
+  ID = HU_GLM$ID)
+
+m.lwrd <- ulam(
+  alist(
+    c(Lw, Rd) ~ multi_normal( c(muLw,muRd) , Rho , Sigma ),
+    muLw <- abarL + zL[ID]*sigma_aL + bReiL * Rei + bDL * De + bRunL * Run + bAirL * Air + bSL * Sed,
+    muRd <- abarR + zR[ID]*sigma_aR + bReiR * Rei + bDR * De + bRunR * Run + bAirR * Air + bSR* Sed,
+    Sed ~ dnorm(nu, sigma_S),
+    zL[ID] ~ normal(0, 1),
+    zR[ID] ~ normal(0, 1),
+    c(abarL, bReiL, bDL, bRunL, bAirL, bSL, abarR, bReiR, bDR, bRunR, bAirR, bSR, nu) ~ normal(0, 1),
+    c(Sigma, sigma_S, sigma_aL, sigma_aR) ~ exponential(1),
+    Rho ~ lkj_corr(2),
+    gq> vector[ID]:aL <<- abarL + zL*sigma_aL,
+    gq> vector[ID]:aR <<- abarR + zR*sigma_aR
+  ), data = dat, chains = 4, core = 4, 
+  control = list(adapt_delta = 0.99), log_lik = TRUE,
+  iter = 8000, warmup = 6000, cmdstan = TRUE
+)
+dashboard(m.lwrd)
+precis(m.lwrd, depth = 3)
+
+
+m.lwrd.post <- extract.samples(m.lwrd)
+colMeans(m.rd1.post$mu) -> m.rd1.pred
+m.rd1.pred - log(HU_GLM$Rdia) -> m.rd1.resd
+plot(m.rd1.pred, m.rd1.resd)
+qqplot(m.rd1.pred, log(HU_GLM$Rdia))
+abline(a = 0, b = 1, col = "red")
+
+
+#### HU binomial ####
+
+dat <- list(
+  Gf = ifelse(HU_GLM$abb == "HUW", 1, 0),
+  Rei = HU_GLM$REI,
+  De = HU_GLM$Depth,
+  AveT = HU_GLM$Ave_temp,
+  Run = HU_GLM$Runoff,
+  Per = HU_GLM$Perci,
+  Air = HU_GLM$Air,
+  Sed = HU_GLM$Sed,
+  ID = HU_GLM$ID
+)
+
+m.bino <- ulam(
+  alist(
+    Gf ~ binomial(1, p),
+    logit(p) <- abar + z[ID]*sigma_a + bRei * Rei + bD * De + bAT * AveT + bRun * Run + bP * Per + bAir * Air + bS * Sed,
+    Sed ~ dnorm(nu, sigma_S),
+    z[ID] ~ normal(0, 1),
+    c(abar,bRei, bD, bAT, bRun, bP, bAir, bS, nu) ~ normal(0, 1),
+    c(sigma_S, sigma_a) ~ exponential(1),
+    gq> vector[ID]:a <<- abar + z*sigma_a
+  ), data = dat, chains = 4, core = 4, 
+  control = list(adapt_delta = 0.99),  log_lik = TRUE,
+  iter = 8000, warmup = 6000, cmdstan = TRUE
+)
+dashboard(m.bino)
+precis(m.bino, depth = 2)
+
+dat <- list(
+  Gf = ifelse(HU_GLM$abb == "HUW", 1, 0),
+  PC = scores$PC1,
+  ID = HU_GLM$ID
+)
+
+m.biPC <- ulam(
+  alist(
+    Gf ~ binomial(1, p),
+    logit(p) <- a + bPC * PC,
+    c(a, bPC) ~ normal(0, 1)
+    #gq> vector[ID]:a <<- abar + z*sigma_a
+  ), data = dat, chains = 4, core = 4, 
+  control = list(adapt_delta = 0.99),  log_lik = TRUE,
+  iter = 8000, warmup = 6000, cmdstan = TRUE
+)
+dashboard(m.biPC)
+precis(m.biPC, depth = 2)
+extract.samples(m.biPC) -> aa
+
+scores$PC1 %>% summary()
+
+
+bb = matrix(NA, nrow = 1000, ncol = 49)
+for(i in 1:49){
+  bb[, i] = rbinom(1000, 1, colMeans(aa$p)[i])
+}
+plot(scores$PC1, colMeans(bb))
+
+
 #' Fish biomass index using fish PCA combination
 #### Fish biomass ####
 HU_ave %>%
@@ -1587,171 +1883,6 @@ ggplot(car_meadow_plot) +
 bb
 bb %>% ggexport(filename = "../plots/Bluecarbon.png",
                 width = 4000, height = 3500, res = 600)
-
-#' For the other six traits. Multivariate models from brms are used to estimate the distribution of the traits.
-#' Below there are four models for comparison
-#' 1. All seven traits ~ all environment covariates in Gaussian family
-#' 2. All seven traits ~ environment covariates (REI, Depth, and Sediments) with more variability in Gaussian family
-#' 3. All seven traits ~ all environment covariates in log-normal family
-#' 4. All seven traits ~ environment covariates (REI, Depth, and Sediments) with more variability in log-normal family
-#' Then compare 4 models using loo function and select the best one
-
-HU_ave %>%
-  select(!c(mean_max, mean_min)) %>%
-  mutate(REI = scale(total_REI)[, 1],
-         Depth =  scale(depth)[, 1],
-         Ave_temp = scale(ave_temp)[, 1],
-         Var_temp = scale(mean_var)[, 1],
-         Runoff = scale(runoff)[, 1],
-         Perci = scale(perci)[, 1],
-         Air = scale(air_exposure), .keep = "unused") %>%
-  mutate(Sed = Gravel) %>%
-  mutate_all(~replace(., is.na(.), 0)) -> HU_mul
-
-for(i in 1:nrow(HU_mul)){
-  if(HU_mul$Gravel[i] > 20){
-    HU_mul$Sed[i] = 1
-  } else if(HU_mul$Sand[i] > 55){
-    HU_mul$Sed[i] = 2
-  } else if(HU_mul$Silt[i] > 50){
-    HU_mul$Sed[i] = 3
-  } else if(HU_mul$Clay[i] == 0){
-    HU_mul$Sed[i] = 0
-  } else{
-    HU_mul$Sed[i] = 4
-  }
-}
-HU_mul$Sed = as.factor(HU_mul$Sed)
-
-#' Model 1
-
-priors <- prior(normal(0 ,10), class = "Intercept") +
-  prior(normal(0, 1), class = "b")
-
-
-#prior(gamma(2, 1), class = "sigma")
-
-bform1 <- 
-  bf(mvbind(ADM_S, BDM_S, CanopyH, LLength, RLength, ILength) ~ (1|Location) + Sed) +
-  set_rescor(TRUE)
-
-fit1 <- brm(bform1,
-            data = HU_mul, 
-            #prior = priors,
-            #family = lognormal(link = "identity", link_sigma = "log"),
-            chains = 4, 
-            cores = 4,
-            iter = 2000,
-            warmup = 1000)
-saveRDS(fit1, file = "../models/Multivariate1.Rds")
-fit1 <- readRDS(file = "../models/Multivariate1.Rds")
-
-# fit1 <- add_criterion(fit1, "loo", moment_match = TRUE)
-
-summary(fit1)
-conditional_effects(fit1)
-
-#' Model 2
-
-bform2 <- 
-  bf(mvbind(Shoot_number, ADM, BDM, CanopyH, LLength, RLength, ILength) ~ REI + Depth + as.factor(Sed)) +
-  set_rescor(TRUE)
-
-fit2 <- brm(bform2,
-            data = HU_mul, 
-            #prior = priors,
-            #family = lognormal(link = "identity", link_sigma = "log"),
-            chains = 4, 
-            cores = 4,
-            iter = 2000,
-            warmup = 1000)
-saveRDS(fit2, file = "../models/Multivariate2.Rds")
-fit2 <- readRDS(file = "../models/Multivariate2.Rds")
-
-
-# fit2 <- add_criterion(fit2, "loo", moment_match = TRUE)
-summary(fit2)
-
-#' Model 3
-
-bform3 <- 
-  bf(mvbind(Shoot_number, ADM, BDM, CanopyH, LLength, RLength, ILength) ~ REI + Depth + Ave_temp + Var_temp + Runoff + Perci + Sed) +
-  set_rescor(FALSE)
-
-fit3 <- brm(bform3,
-            data = HU_mul, 
-            #prior = priors,
-            family = lognormal(link = "identity", link_sigma = "log"),
-            chains = 4, 
-            cores = 4,
-            iter = 2000,
-            warmup = 1000)
-saveRDS(fit3, file = "../models/Multivariate3.Rds")
-fit3 <- readRDS(file = "../models/Multivariate3.Rds")
-
-# fit3 <- add_criterion(fit3, "loo", moment_match = TRUE)
-summary(fit3)
-
-#' Model 4
-bform4 <- 
-  bf(mvbind(Shoot_number, ADM, BDM, CanopyH, LLength, RLength, ILength) ~ REI + Depth + as.factor(Sed)) +
-  set_rescor(FALSE)
-
-fit4 <- brm(bform4,
-            data = HU_mul, 
-            #prior = priors,
-            family = lognormal(link = "identity", link_sigma = "log"),
-            chains = 4, 
-            cores = 4,
-            iter = 2000,
-            warmup = 1000)
-saveRDS(fit4, file = "../models/Multivariate4.Rds")
-fit4 <- readRDS(file = "../models/Multivariate4.Rds")
-
-# fit4 <- add_criterion(fit4, "loo", moment_match = TRUE)
-summary(fit4)
-
-#' Model 5
-bform5 <- 
-  bf(mvbind(Shoot_number, ADM, BDM, CanopyH, LLength, RLength, ILength) ~ 1) +
-  set_rescor(FALSE)
-
-fit5 <- brm(bform5,
-            data = HU_mul, 
-            #prior = priors,
-            family = lognormal(link = "identity", link_sigma = "log"),
-            chains = 4, 
-            cores = 4,
-            iter = 2000,
-            warmup = 1000)
-saveRDS(fit5, file = "../models/Multivariate5.Rds")
-fit5 <- readRDS(file = "../models/Multivariate5.Rds")
-
-summary(fit5)
-
-loo(fit1, fit2, fit3, fit4, fit5)
-# loo stands for "leave one out" estimate how the model look like with one observed data is kick out
-# "pareto k diagnostic" indicates if any observed data is hard for loo to kick out and simulate. If there is any data seat at "bad", "very bad", the aic might not be trustable -> refine model
-# loo_compare() put the best model at the top row (base on deviance(elpd_diff), the higher the better)
-
-# fit3 is the best model of the 5
-fit3$fit %>% stan_trace()
-fit3$fit %>% stan_ac()
-
-conditions <- data.frame(Sed = c(1, 2, 3, 4))
-fit3 %>% conditional_effects( resp = "ADM",
-                             conditions = conditions) 
-
-preds <- fit3 %>% posterior_predict(nasamples = 250, summary = FALSE)
-fit3.resids <- createDHARMa(simulatedResponse = t(preds[,,"ADM"]),
-                            observedResponse = HU_mul$Shoot_number,
-                            fittedPredictedResponse = apply(preds, 2, median),
-                            integerResponse = FALSE)
-fit.resids %>% plot()
-
-
-
-
 
 
 #+ Exploring mixture model with simulated data and Extra example not run, eval = FALSE, include = FALSE

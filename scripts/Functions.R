@@ -183,6 +183,7 @@ ITV_pca_biplot <- function(ITV_pca, cluster, color_arrow){
                     pointshape = 21,
                     pointsize = 2.5,
                     fill.ind = as.factor(cluster),
+                    mean.point = FALSE,
                     col.ind = "black",
                     # Color variable by groups
                     col.var = "contrib",
@@ -199,6 +200,7 @@ ITV_pca_biplot <- function(ITV_pca, cluster, color_arrow){
                     pointshape = 21,
                     pointsize = 2.5,
                     fill.ind = as.factor(cluster),
+                    mean.point = FALSE,
                     palette = c("#009E73", "#E69F00"), # Individual fill color palette
                     col.ind = "gray7",
                     col.var = "gray20",
