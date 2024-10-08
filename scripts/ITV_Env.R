@@ -440,7 +440,7 @@ ggplot() +
     panel.grid.minor = element_blank()
   ) -> p
 ggexport(p, filename = "../plots/Env_bpca.png",
-         width = 2000, height = 1500, res = 300)
+         width = 3000, height = 3000, res = 600)
 
 
 # Create data for trait pca analysis
@@ -514,10 +514,12 @@ p1 <- ITV_pca_biplot(HU_ave_pca, HU_kmean_pam$k3, 1)
 p2 <- ITV_pca_biplot(HU_ave_pca, HU_kmean_pam$pam3, 1)
 grid.arrange(p1, p2, nrow = 1) # This code might cause error if the plots window is too small. Just increase it if needed.
 
-# Save the PCA plot colored by growthform. It's the same as k=2 kmeans clustering.
-ITV_pca_biplot(HU_ave_pca, HU_kmean_pam$abb, 2) %>%
-  ggexport(filename = "../plots/HU_pca_plot.png",
-           width = 2000, height = 1500, res = 300)
+# Save the PCA plot colored by growth form. It's the same as k=2 kmeans clustering.
+ITV_pca_biplot(HU_ave_pca, HU_kmean_pam$abb, 2) +
+  theme(axis.title = element_text(size = 12),
+        axis.text = element_text(size = 11)) -> p
+ggexport(p, filename = "../plots/HU_pca_plot.png",
+         width = 3000, height = 3000, res = 600)
 
 #' Try the Jones fish approach. Put four traits in the PCA to see PC1 composition
 
@@ -529,9 +531,11 @@ HU_fish_pca <- prcomp(HU_fish,
                        scale = TRUE)
 summary(HU_fish_pca)
 
-ITV_pca_biplot(HU_fish_pca, HU_kmean_pam$abb, 2) %>%
-  ggexport(filename = "../plots/HU_fish_plot.png",
-         width = 2000, height = 1500, res = 300)
+ITV_pca_biplot(HU_fish_pca, HU_kmean_pam$abb, 2) +
+  theme(axis.title = element_text(size = 12),
+        axis.text = element_text(size = 11)) -> p
+ggexport(p, filename = "../plots/HU_fish_plot.png",
+         width = 3000, height = 3000, res = 600)
 
 get_pca_var(HU_fish_pca)$coord
 
@@ -1794,9 +1798,13 @@ ggplot(PC1_sim_plot) +
   theme_classic() +
   labs(x = "Fish biomass index",
        y = "") +
-  theme(legend.position = "none") -> aa
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 11),
+        axis.title = element_text(size = 12)) -> aa
+aa
 aa %>% ggexport(filename = "../plots/Biomassindex.png",
-           width = 4000, height = 3500, res = 600)
+           width = 3000, height = 2500, res = 600)
 
 #' Blue carbon represented by three traits
 #### Blue carbon ####
@@ -1879,10 +1887,13 @@ ggplot(car_meadow_plot) +
   theme_classic() +
   labs(x = "Carbon storage (log transformed)",
        y = "") +
-  theme(legend.position = "none") -> bb
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 11),
+        axis.title = element_text(size = 12)) -> bb
 bb
 bb %>% ggexport(filename = "../plots/Bluecarbon.png",
-                width = 4000, height = 3500, res = 600)
+                width = 3000, height = 2500, res = 600)
 
 
 #+ Exploring mixture model with simulated data and Extra example not run, eval = FALSE, include = FALSE

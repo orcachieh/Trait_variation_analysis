@@ -18,6 +18,7 @@ library(ggpubr)
 library(viridis)
 library(hrbrthemes)
 library(plotly)
+library(grid)
 
 #' This document aims to show trait variation within a seagrass species.
 #'The raw data were obtained from 12 distinct locations in Queensland, Australia. The measurements primarily took place within a controlled wet laboratory environment, employing appropriate scientific instruments. However, a subset of finer-scale measurements, typically measuring less than 5 mm, were conducted digitally using the ImageJ software on a computer
@@ -282,3 +283,55 @@ HO %>%
   xlab("Leaf surface area (mm^2)")
 
 #' Tried to see is there any distinct groups of leaf size of HO, because I felt there a big leaf individuals and small leaf ones. However, it seems to be a continous distibution. 
+
+#' HU triat plot for supplementary information
+#+ HU triat plot for supplementary figure
+HU %>%
+  mutate(ABMs = rowMeans(select(.,Aboveground_dry_mass1, Aboveground_dry_mass2), na.rm = TRUE)/Shoot_number,
+         BBMs = rowMeans(select(.,Belowground_dry_mass1, Belowground_dry_mass2))/Shoot_number, .keep = "unused") -> HU_splot
+
+
+box_gf = function(trait, ytitle){
+  HU_splot %>% 
+    select(SampleID, abb, trait) %>%
+    group_by(SampleID, abb) %>%
+    dplyr::summarise(nn = mean(get(trait), na.rm = TRUE),
+                     .groups = "drop") -> t_data
+  
+  
+  pp <- ggplot(data = t_data) +
+    geom_boxplot(aes_string(y = "abb" , x = colnames(t_data)[3], fill = "abb")) +
+    scale_fill_manual(values = c(HUN = "#009E73", HUW = "#E69F00")) +
+    theme_minimal() +
+    labs(fill = "Growth forms",
+         y = "",
+         x = ytitle) +
+    theme(
+      legend.title = element_text(size = 10),
+      legend.text = element_text(size = 10),
+      legend.position = "right",
+      axis.title = element_text(size = 12),
+      axis.text = element_text(size = 10))
+}
+
+
+Abiomass <- box_gf("ABMs", "Above ground biomass per shoot (mg)")
+Bbiomass <- box_gf("BBMs", "Below ground biomass per shoot (mg)")
+CH <- box_gf("Canopyheight", "Canopy Height (mm)")
+LL <- box_gf("Leaflength", "Leaf Length (mm)")
+LW <- box_gf("Leafwidth", "Leaf Width (mm)")
+RL <- box_gf("Rootlength", "Root Length (mm)")
+RL <- box_gf("Rootlength", "Root Length (mm)")
+RD <- box_gf("Rhizomediameter", "Rhizome Diameter (mm)")
+ID <- box_gf("Internodelength", "Internode Distance (mm)")
+
+
+ggarrange(Abiomass, Bbiomass, LL, LW, CH, RL, RD, ID,
+          ncol = 2, nrow = 4,
+          common.legend = TRUE, legend = "none") + 
+  annotation_custom(grid.polygon(x = c(0.5, 0.5, 0, 1, 0, 1, 0, 1),
+                                 y = c(0, 1, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75),
+                                 id = c(1, 1, 2, 2, 3, 3, 4, 4))) -> Splot
+ggexport(Splot, filename = "../plots/Splot.png",
+         width =4500, height = 5500, res = 600)
+
