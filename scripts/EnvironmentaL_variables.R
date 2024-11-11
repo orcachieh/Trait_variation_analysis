@@ -13,6 +13,18 @@
 
 #+  Read library, include = FALSE
 #### Read Libaray ####
+library(marmap)
+library(tidyverse)
+library(shape)
+library(waver) # Calculate fetch
+library(rWind) # Calculate wind
+library(mapdata)
+library(maps)
+library(ncdf4) # package for netcdf manipulation
+library(terra)
+library(ggplot2)
+library(doBy)
+library(gstat) # For interpolate depth from contour lines
 
 #+ Source functions from Functions.R 
 #### Import functions  ####
@@ -27,7 +39,7 @@ source("./scripts/Functions.R")
 #### Read all sample localities ####
 
 # read and cleanup sample point csv
-loc <- read.csv("./../Sample points/Sample_points_include_Tropwater.csv")
+loc <- read.csv("./Seagrass_sample_points.csv")
 
 loc %>%
   select(lon, lat, name) -> loc
@@ -107,29 +119,29 @@ perci <- sort_nc("Total_precipitation_2015_2023")
 #### Relative physical exposure ####
 
 # read intertidal elevation contour layer (National Intertidal Digital Elevation Model 25m 1.0.0)
-to1 <- vect("../Coastal_data/NIDEM/NIDEM_contours_24_147.05_-18.95.shp") # contain sample points
-to2 <- vect("../Coastal_data/NIDEM/NIDEM_contours_195_146.51_-18.95.shp") # contain sample points
+to1 <- vect("./Coastal_data/NIDEM/NIDEM_contours_24_147.05_-18.95.shp") # contain sample points
+to2 <- vect("./Coastal_data/NIDEM/NIDEM_contours_195_146.51_-18.95.shp") # contain sample points
 
-cl1 <- vect("../Coastal_data/NIDEM/NIDEM_contours_191_149.62_-21.95.shp") # contain sample points
-cl2 <- vect("../Coastal_data/NIDEM/NIDEM_contours_143_149.79_-22.14.shp")
-cl3 <- vect("../Coastal_data/NIDEM/NIDEM_contours_234_149.84_-22.32.shp")
-cl4 <- vect("../Coastal_data/NIDEM/NIDEM_contours_39_149.58_-21.77.shp")
+cl1 <- vect("./Coastal_data/NIDEM/NIDEM_contours_191_149.62_-21.95.shp") # contain sample points
+cl2 <- vect("./Coastal_data/NIDEM/NIDEM_contours_143_149.79_-22.14.shp")
+cl3 <- vect("./Coastal_data/NIDEM/NIDEM_contours_234_149.84_-22.32.shp")
+cl4 <- vect("./Coastal_data/NIDEM/NIDEM_contours_39_149.58_-21.77.shp")
 
-gl1 <- vect("../Coastal_data/NIDEM/NIDEM_contours_269_151.42_-23.71.shp") # contain sample points
-gl2 <- vect("../Coastal_data/NIDEM/NIDEM_contours_177_151.69_-23.18.shp")
-gl3 <- vect("../Coastal_data/NIDEM/NIDEM_contours_218_151.04_-23.36.shp")
-gl4 <- vect("../Coastal_data/NIDEM/NIDEM_contours_253_152.38_-24.58.shp")
-gl5 <- vect("../Coastal_data/NIDEM/NIDEM_contours_97_152.53_-23.99.shp")
+gl1 <- vect("./Coastal_data/NIDEM/NIDEM_contours_269_151.42_-23.71.shp") # contain sample points
+gl2 <- vect("./Coastal_data/NIDEM/NIDEM_contours_177_151.69_-23.18.shp")
+gl3 <- vect("./Coastal_data/NIDEM/NIDEM_contours_218_151.04_-23.36.shp")
+gl4 <- vect("./Coastal_data/NIDEM/NIDEM_contours_253_152.38_-24.58.shp")
+gl5 <- vect("./Coastal_data/NIDEM/NIDEM_contours_97_152.53_-23.99.shp")
 
-he1 <- vect("../Coastal_data/NIDEM/NIDEM_contours_300_152.96_-25.35.shp") # contain sample points
-he2 <- vect("../Coastal_data/NIDEM/NIDEM_contours_168_153.32_-25.48.shp")
-he3 <- vect("../Coastal_data/NIDEM/NIDEM_contours_249_152.90_-25.01.shp")
+he1 <- vect("./Coastal_data/NIDEM/NIDEM_contours_300_152.96_-25.35.shp") # contain sample points
+he2 <- vect("./Coastal_data/NIDEM/NIDEM_contours_168_153.32_-25.48.shp")
+he3 <- vect("./Coastal_data/NIDEM/NIDEM_contours_249_152.90_-25.01.shp")
 
-we1 <- vect("../Coastal_data/NIDEM/NIDEM_contours_244_141.39_-12.88.shp") # contain sample points
-we2 <- vect("../Coastal_data/NIDEM/NIDEM_contours_99_141.57_-12.19.shp")
+we1 <- vect("./Coastal_data/NIDEM/NIDEM_contours_244_141.39_-12.88.shp") # contain sample points
+we2 <- vect("./Coastal_data/NIDEM/NIDEM_contours_99_141.57_-12.19.shp")
 
-ka1 <- vect("../Coastal_data/NIDEM/NIDEM_contours_136_140.66_-17.14.shp") # contain sample points
-ka2 <- vect("../Coastal_data/NIDEM/NIDEM_contours_281_140.26_-17.52.shp")
+ka1 <- vect("./Coastal_data/NIDEM/NIDEM_contours_136_140.66_-17.14.shp") # contain sample points
+ka2 <- vect("./Coastal_data/NIDEM/NIDEM_contours_281_140.26_-17.52.shp")
 
 # merge all subset maps
 
@@ -297,18 +309,18 @@ d_list %>%
 #+ Air exposure
 #### Air exposure ####
 
-to1_a <- rast("../Coastal_data/ITEM/ITEM_REL_24_147.05_-18.95.tif")
-to2_a <- rast("../Coastal_data/ITEM/ITEM_REL_195_146.51_-18.95.tif")
+to1_a <- rast("./Coastal_data/ITEM/ITEM_REL_24_147.05_-18.95.tif")
+to2_a <- rast("./Coastal_data/ITEM/ITEM_REL_195_146.51_-18.95.tif")
 
-cl1_a <- rast("../Coastal_data/ITEM/ITEM_REL_191_149.62_-21.95.tif")
+cl1_a <- rast("./Coastal_data/ITEM/ITEM_REL_191_149.62_-21.95.tif")
 
-gl1_a <- rast("../Coastal_data/ITEM/ITEM_REL_269_151.42_-23.71.tif")
+gl1_a <- rast("./Coastal_data/ITEM/ITEM_REL_269_151.42_-23.71.tif")
 
-he1_a<- rast("../Coastal_data/ITEM/ITEM_REL_300_152.96_-25.35.tif")
+he1_a<- rast("./Coastal_data/ITEM/ITEM_REL_300_152.96_-25.35.tif")
 
-we1_a<- rast("../Coastal_data/ITEM/ITEM_REL_244_141.39_-12.88.tif")
+we1_a<- rast("./Coastal_data/ITEM/ITEM_REL_244_141.39_-12.88.tif")
 
-ka1_a <- rast("../Coastal_data/ITEM/ITEM_REL_136_140.66_-17.14.tif")
+ka1_a <- rast("./Coastal_data/ITEM/ITEM_REL_136_140.66_-17.14.tif")
 
 # Use customize function (sample_air) to intersect air exposure raster
 # Townsville region. Need to merge 2 contour lines file first to cover all points
@@ -407,7 +419,7 @@ temp[,-1] %>%
 #+ Sediment
 #### Sediment ####
 
-sed <- read.csv("../Sediment_data/sed_four_categories.csv")
+sed <- read.csv("./Sediment_data/sed_four_categories.csv")
 colnames(sed) <- c("name", "Gravel", "Sand", "Silt", "Clay")
 
 loc %>%
@@ -449,7 +461,7 @@ loc_sed <- sed_match(loc_point, sed_all)
 
 # Read in another format of sediment data to calculate mean grain size
 
-sed_each <- read.csv("../Sediment_data/sed_each.csv")
+sed_each <- read.csv("./Sediment_data/sed_each.csv")
 colnames(sed_each)[1] <- "name"
 
 sed_each %>%
@@ -533,4 +545,4 @@ var %>%
 
 fin_var
 
-# write.csv(fin_var, "../environment_variables.csv", row.names = FALSE)
+# write.csv(fin_var, "./environment_variables.csv", row.names = FALSE)

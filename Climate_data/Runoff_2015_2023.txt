@@ -1,0 +1,55 @@
+File ../Climate_data/Runoff_2015_2023.nc (NC_FORMAT_NETCDF4):
+
+     2 variables (excluding dimension variables):
+        8 byte int realization[]   (Contiguous storage)  
+            long_name: realization
+            units: 1
+            standard_name: realization
+            stored_direction: increasing
+            type: integer
+        float ro[lon,lat,time]   (Contiguous storage)  
+            _FillValue: NaN
+            long_name: Runoff
+            units: kg m-2
+            standard_name: runoff_amount
+            comment: The total run-off (including drainage through the base of the soil model) per unit area leaving the land portion of the grid cell. 'Amount' means mass per unit area. Runoff is the liquid water which drains from land. If not specified, 'runoff' refers to the sum of surface runoff and subsurface drainage.
+            type: real
+            accumulated_since: start of timestep
+            coordinates: realization
+
+     3 dimensions:
+        time  Size:108 
+            long_name: time
+            standard_name: time
+            axis: T
+            stored_direction: increasing
+            type: double
+            units: days since 2014-12-31 00:00:00
+            calendar: proleptic_gregorian
+        lat  Size:81 
+            _FillValue: NaN
+            units: degrees_north
+            standard_name: latitude
+            long_name: latitude
+            stored_direction: decreasing
+            axis: Y
+            positive: up
+            type: double
+            valid_max: 90
+            valid_min: -90
+        lon  Size:101 
+            _FillValue: NaN
+            units: degrees_east
+            standard_name: longitude
+            long_name: longitude
+            axis: X
+            positive: up
+            type: double
+            valid_max: 360
+            valid_min: -180
+
+    4 global attributes:
+        Conventions: CF-1.7
+        institution: European Centre for Medium-Range Weather Forecasts
+        history: 2023-12-22T17:47 GRIB to CDM+CF via cfgrib-0.9.9.1/ecCodes-2.27.0 with {"source": "/nfs/compute-0010/data6/adaptor.mars.internal-1703262112.5494292-6236-16-796f512a-58fa-4f79-a55f-de8149933e5e.grib", "filter_by_keys": {}, "encode_cf": ["parameter", "time", "geography", "vertical"]}
+        source: ECMWF

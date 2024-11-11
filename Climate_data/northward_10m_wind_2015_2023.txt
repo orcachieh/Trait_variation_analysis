@@ -1,0 +1,55 @@
+File ../Climate_data/northward_10m_wind_2015_2023.nc (NC_FORMAT_NETCDF4):
+
+     2 variables (excluding dimension variables):
+        8 byte int realization[]   (Contiguous storage)  
+            long_name: realization
+            units: 1
+            standard_name: realization
+            stored_direction: increasing
+            type: integer
+        float v10[lon,lat,time]   (Contiguous storage)  
+            _FillValue: NaN
+            long_name: 10 metre V wind component
+            units: m s-1
+            standard_name: northward_wind
+            comment: Northward component of the near surface wind
+            cds_magics_style_name: turbo_half_0_10_continuous
+            type: real
+            coordinates: realization
+
+     3 dimensions:
+        time  Size:108 
+            long_name: time
+            standard_name: time
+            axis: T
+            stored_direction: increasing
+            type: double
+            units: days since 2014-12-31 00:00:00
+            calendar: proleptic_gregorian
+        lat  Size:81 
+            _FillValue: NaN
+            units: degrees_north
+            standard_name: latitude
+            long_name: latitude
+            stored_direction: decreasing
+            axis: Y
+            positive: up
+            type: double
+            valid_max: 90
+            valid_min: -90
+        lon  Size:101 
+            _FillValue: NaN
+            units: degrees_east
+            standard_name: longitude
+            long_name: longitude
+            axis: X
+            positive: up
+            type: double
+            valid_max: 360
+            valid_min: -180
+
+    4 global attributes:
+        Conventions: CF-1.7
+        institution: European Centre for Medium-Range Weather Forecasts
+        history: 2023-12-22T14:13 GRIB to CDM+CF via cfgrib-0.9.9.1/ecCodes-2.27.0 with {"source": "/nfs/compute-0018/data2/adaptor.mars.internal-1703250767.5629232-32355-13-a08d16dc-df04-4777-a4f6-76c9b8415fae.grib", "filter_by_keys": {}, "encode_cf": ["parameter", "time", "geography", "vertical"]}
+        source: ECMWF

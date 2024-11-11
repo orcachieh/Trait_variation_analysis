@@ -1,0 +1,55 @@
+File ../Climate_data/Total_precipitation_2015_2023.nc (NC_FORMAT_NETCDF4):
+
+     2 variables (excluding dimension variables):
+        8 byte int realization[]   (Contiguous storage)  
+            long_name: realization
+            units: 1
+            standard_name: realization
+            stored_direction: increasing
+            type: integer
+        float tp[lon,lat,time]   (Contiguous storage)  
+            _FillValue: NaN
+            long_name: Total precipitation
+            units: m
+            standard_name: lwe_thickness_of_precipitation_amount
+            comment: The construction lwe_thickness_of_X_amount or _content means the vertical extent of a layer of liquid water having the same mass per unit area. 'Precipitation' in the Earth's atmosphere means precipitation of water in all phases. The abbreviation 'lwe' means liquid water equivalent.
+            type: real
+            accumulated_since: start of timestep
+            coordinates: realization
+
+     3 dimensions:
+        time  Size:109 
+            long_name: time
+            standard_name: time
+            axis: T
+            stored_direction: increasing
+            type: double
+            units: days since 2014-12-01 00:00:00
+            calendar: proleptic_gregorian
+        lat  Size:81 
+            _FillValue: NaN
+            units: degrees_north
+            standard_name: latitude
+            long_name: latitude
+            stored_direction: decreasing
+            axis: Y
+            positive: up
+            type: double
+            valid_max: 90
+            valid_min: -90
+        lon  Size:101 
+            _FillValue: NaN
+            units: degrees_east
+            standard_name: longitude
+            long_name: longitude
+            axis: X
+            positive: up
+            type: double
+            valid_max: 360
+            valid_min: -180
+
+    4 global attributes:
+        Conventions: CF-1.7
+        institution: European Centre for Medium-Range Weather Forecasts
+        history: 2023-12-26T17:50 GRIB to CDM+CF via cfgrib-0.9.9.1/ecCodes-2.27.0 with {"source": "/nfs/compute-0009/data8/adaptor.mars.internal-1703608361.2946901-25212-6-8616320f-a211-4ee8-a57f-e15ceb02cc28.grib", "filter_by_keys": {}, "encode_cf": ["parameter", "time", "geography", "vertical"]}
+        source: ECMWF

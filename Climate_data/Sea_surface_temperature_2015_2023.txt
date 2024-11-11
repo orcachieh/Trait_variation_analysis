@@ -1,0 +1,44 @@
+File ../Climate_data/Sea_surface_temperature_2015_2023.nc (NC_FORMAT_NETCDF4):
+
+     2 variables (excluding dimension variables):
+        8 byte int realization[]   (Contiguous storage)  
+            long_name: realization
+            units: 1
+            standard_name: realization
+            stored_direction: increasing
+            type: integer
+        float sst[lon,lat,time]   (Contiguous storage)  
+            _FillValue: NaN
+            units: Celsius
+            coordinates: realization
+
+     3 dimensions:
+        time  Size:108 
+            long_name: time
+            standard_name: time
+            axis: T
+            stored_direction: increasing
+            type: double
+            units: days since 2014-12-31 00:00:00
+            calendar: proleptic_gregorian
+        lat  Size:81 
+            _FillValue: NaN
+            units: degrees_north
+            standard_name: latitude
+            long_name: latitude
+            stored_direction: decreasing
+            axis: Y
+            positive: up
+            type: double
+            valid_max: 90
+            valid_min: -90
+        lon  Size:101 
+            _FillValue: NaN
+            units: degrees_east
+            standard_name: longitude
+            long_name: longitude
+            axis: X
+            positive: up
+            type: double
+            valid_max: 360
+            valid_min: -180
