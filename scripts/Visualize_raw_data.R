@@ -32,7 +32,7 @@ library(grid)
 
 #+ Read data and Pivot to plotting format, warning = FALSE
 
-trait_dat <- read.csv("../trait_raw_data.csv", header = TRUE)
+trait_dat <- read.csv("./trait_raw_data.csv", header = TRUE)
 
 trait_dat %>%
   select(!ends_with("photo.") & !contains("note") &
@@ -282,9 +282,9 @@ HO %>%
   ggtitle("HO leaf surface area distribution") +
   xlab("Leaf surface area (mm^2)")
 
-#' Tried to see is there any distinct groups of leaf size of HO, because I felt there a big leaf individuals and small leaf ones. However, it seems to be a continous distibution. 
+#' Tried to see is there any distinct groups of leaf size of HO, because I felt there a big leaf individuals and small leaf ones. However, it seems to be a continuous distribution. 
 
-#' HU triat plot for supplementary information
+#+ #### HU triat plot for supplementary information ####
 #+ HU triat plot for supplementary figure
 HU %>%
   mutate(ABMs = rowMeans(select(.,Aboveground_dry_mass1, Aboveground_dry_mass2), na.rm = TRUE)/Shoot_number,
@@ -332,6 +332,6 @@ ggarrange(Abiomass, Bbiomass, LL, LW, CH, RL, RD, ID,
   annotation_custom(grid.polygon(x = c(0.5, 0.5, 0, 1, 0, 1, 0, 1),
                                  y = c(0, 1, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75),
                                  id = c(1, 1, 2, 2, 3, 3, 4, 4))) -> Splot
-ggexport(Splot, filename = "../plots/Splot.png",
+ggexport(Splot, filename = "./plots/Splot.png",
          width =4500, height = 5500, res = 600)
 

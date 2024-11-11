@@ -39,7 +39,7 @@ library(ggpp)
 #+ Source functions from Functions.R 
 #### Input functions  ####
 
-source("./Functions.R")
+source("./scripts/Functions.R")
 
 
 #' # Trait and Environmental Variables 
@@ -47,8 +47,8 @@ source("./Functions.R")
 #+ read and process data
 #### Read and match trait and env. variables ####
 
-trait_dat <- read.csv("../trait_raw_data.csv", header = TRUE)
-env <- read.csv("../environment_variables.csv", header = TRUE)
+trait_dat <- read.csv("./trait_raw_data.csv", header = TRUE)
+env <- read.csv("./environment_variables.csv", header = TRUE)
 
 # Multiple 6 location environmental data to 3 rows to match the trait_dat format (ZC, CV, HER, KAR, GLD, WP)
 env %>%
@@ -816,7 +816,7 @@ MUL_mix <- MUL_mix_mod$sample(
 # However, this will lead to the estimation become a log normal distribution which is generally skew.
 
 # saveRDS(MUL_mix, file = "../models/Multivariate_mixture.Rds")
-MUL_mix = readRDS(file = "../models/Multivariate_mixture.Rds")
+MUL_mix = readRDS(file = "./models/Multivariate_mixture.Rds")
 
 # Check divergence and tree depth
 MUL_mix$diagnostic_summary()
@@ -852,7 +852,7 @@ data.frame(NLW = rmvnorm(10000, c(mix_coef[3, 1], mix_coef[4, 1]),
   scale_fill_manual(values = c("#009E73", "#E69F00")) +
   scale_color_manual(values = c("#009E73", "#E69F00"), guide = "none") +
   theme_classic() +
-  labs(x = "Leaf Width (mm)", fill = "Growth form") +
+  labs(x = "Leaf Width (mm)", y = "Density", fill = "Growth form") +
   xlim(0, 5.2) -> LW_est
 LW_est
 ggsave(LW_est, filename = "../plots/LW_estimated_density.png",
@@ -872,7 +872,7 @@ data.frame(NLW = rmvnorm(10000, c(mix_coef[3, 1], mix_coef[4, 1]),
   scale_fill_manual(values = c("#009E73", "#E69F00")) +
   scale_color_manual(values = c("#009E73", "#E69F00"), guide = "none") +
   theme_classic() +
-  labs(x = "Rhizome Diameter (mm)", fill = "Growth form") +
+  labs(x = "Rhizome Diameter (mm)", y = "Density", fill = "Growth form") +
   xlim(0, 3) -> RD_est
 RD_est
 ggsave(RD_est, filename = "../plots/RD_estimated_density.png",

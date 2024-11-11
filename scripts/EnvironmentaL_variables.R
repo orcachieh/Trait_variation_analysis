@@ -14,23 +14,10 @@
 #+  Read library, include = FALSE
 #### Read Libaray ####
 
-library(marmap)
-library(tidyverse)
-library(shape)
-library(waver) # Calculate fetch
-library(rWind) # Calculate wind
-library(mapdata)
-library(maps)
-library(ncdf4) # package for netcdf manipulation
-library(terra)
-library(ggplot2)
-library(doBy)
-library(gstat) # For interpolate depth from contour lines
-
 #+ Source functions from Functions.R 
 #### Import functions  ####
 
-source("./Functions.R")
+source("./scripts/Functions.R")
 
 #' This document present the all environmental data used in chapter 2
 
@@ -40,7 +27,7 @@ source("./Functions.R")
 #### Read all sample localities ####
 
 # read and cleanup sample point csv
-loc <- read.csv("../../Sample points/Sample_points_include_Tropwater.csv")
+loc <- read.csv("./../Sample points/Sample_points_include_Tropwater.csv")
 
 loc %>%
   select(lon, lat, name) -> loc

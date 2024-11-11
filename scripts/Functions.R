@@ -3,17 +3,17 @@
 # Plot the first 2 and last 2 time stamp as example.
 
 sort_nc <- function(File_name){
-  nc_data <- nc_open(paste("../Climate_data/", File_name, ".nc",sep = ""))
+  nc_data <- nc_open(paste("./Climate_data/", File_name, ".nc",sep = ""))
   # Save the print(nc) dump to a text file
   {
-  sink(paste("../Climate_data/", File_name, ".txt",sep = ""))
+  sink(paste("./Climate_data/", File_name, ".txt",sep = ""))
   print(nc_data)
   sink()
   }
   
   nc_close(nc_data)
   
-  rast_terra <- rast(paste("../Climate_data/", File_name, ".nc",sep = ""))
+  rast_terra <- rast(paste("./Climate_data/", File_name, ".nc",sep = ""))
   # According to sample period (Last sample was collected on 2023 Jan 24), I subset data from 2015 Feb to 2023 Jan (8 years, 96 months in total)
   rast_terra <- subset(rast_terra, 3:98)
   
