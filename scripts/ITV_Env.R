@@ -1,6 +1,6 @@
 #' ---
-#'  title: "Seagrass intraspecific trait variation and evironemtal variables"
-#'  author: "Chieh"
+#'  title: "Seagrass intraspecific trait variation and environmental variables"
+#'  author: "Chieh Lin"
 #'  output: 
 #'    html_document:
 #'      toc: true
@@ -21,10 +21,12 @@ library(tidybayes)
 library(bayesplot) # MCMC diagnostics
 library(cluster)    # clustering algorithms
 library(factoextra) # clustering algorithms & visualization
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install("pcaMethods")
 library(pcaMethods) # Bayesian PCA, enable missing value impute
 
-# library(DHARMa)     #for residual diagnostics
-# library(emmeans)
 # Plotting
 library(ggplot2)
 library(ggpubr)
@@ -50,12 +52,12 @@ source("./scripts/Functions.R")
 trait_dat <- read.csv("./trait_raw_data.csv", header = TRUE)
 env <- read.csv("./environment_variables.csv", header = TRUE)
 
-# Multiple 6 location environmental data to 3 rows to match the trait_dat format (ZC, CV, HER, KAR, GLD, WP)
+# Multiple 6 location environmental data to 3 rows to match the trait_data format (ZC, CV, HER, KAR, GLD, WP)
 env %>%
   add_row(env[33:38, ]) %>%
   add_row(env[33:38, ]) -> env_var
 
-# change location name to match smapleID in trait_dat
+# change location name to match sampleID in trait_dat
 env_var$location[13] = "PAL5_09102022"
 env_var$location[17] = "PALSUB1_24092022"
 env_var$location[18] = "PALSUB2_24092022"
@@ -136,26 +138,24 @@ colnames(trait_env_ave)
 #' # Halodule uninervise
 
 #+ Create HU data
-#+ 
 #### HU ####
 # Long table
 trait_env_long[trait_env_long$abb=="HUN"|trait_env_long$abb=="HUW", ] -> HU_long
 # Average table
 trait_env_ave[trait_env_ave$abb=="HUN"|trait_env_ave$abb=="HUW", ] -> HU_ave
 
+# In order to make balance sampling in all location, remove extra samples form Pallarenda
 HU_long %>%
   arrange(SampleID) %>%
   slice(-c(194:233)) -> HU_long
-
 
 HU_ave %>%
   arrange(SampleID) %>%
   slice(-c(22:25)) -> HU_ave
 
-
 #' ## HU two peaks distribution and coefficient of variation
-#+ HU two peaks and CV analysis
-#### HU two peak plots and CV analysis ####
+#+ HU two distribution
+#### HU two peak plots####
 
 # Histogram
 LW_plot = ggplot(data = HU_long) +
@@ -175,60 +175,6 @@ RD_plot = ggplot(data = HU_long) +
 ggarrange(LW_plot, RD_plot, legend = "right", common.legend = TRUE) %>% 
   ggexport(filename = "./plots/LW_RD_hist.png",
            width = 4000, height = 1600, res= 500)
-
-# CV
-HU_long %>% dplyr::select(11:16) %>% colMeans(., na.rm = TRUE) -> mean1
-HU_long %>% dplyr::select(11:16) %>% apply(2, sd, na.rm = TRUE) -> sd1
-
-HU_ave %>% dplyr::select(9:10) %>% colMeans(., na.rm = TRUE) -> mean2
-HU_ave %>% dplyr::select(9:10) %>% apply(2, sd, na.rm = TRUE) -> sd2
-
-HU_CV <- t((cbind(rbind(mean1, sd1),
-                  rbind(mean2, sd2)))) %>%
-  as.data.frame() %>%
-  mutate(CV = sd1/mean1, Trait = row.names(.))
-
-CV_plot <- ggplot(HU_CV) +
-  geom_point(aes(x = reorder(Trait, CV), y = CV)) +
-  scale_x_discrete(labels =c("RD", "IL", "CH", "RL", "LL", "LW", "BDM/S", "ADM/S")) +
-  theme_classic() +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 45, vjust = 0.3))
-CV_plot
-ggsave(filename = "./plots/CV_plot.png", plot = CV_plot, 
-       width = 10, height = 6, units = "cm")
-
-# Create HO CV plot
-trait_env_long[trait_env_long$abb=="HO", ] -> HO_long
-# Average table
-trait_env_ave[trait_env_ave$abb=="HO", ] -> HO_ave
-
-
-trait_env_long[trait_env_long$abb=="HO", ] -> HO_long
-# Average table
-trait_env_ave[trait_env_ave$abb=="HO", ] -> HO_ave
-
-HO_long %>% dplyr::select(11:16) %>% colMeans(., na.rm = TRUE) -> mean1
-HO_long %>% dplyr::select(11:16) %>% apply(2, sd, na.rm = TRUE) -> sd1
-
-HO_ave %>% dplyr::select(9:10) %>% colMeans(., na.rm = TRUE) -> mean2
-HO_ave %>% dplyr::select(9:10) %>% apply(2, sd, na.rm = TRUE) -> sd2
-
-HO_CV <- t((cbind(rbind(mean1, sd1),
-                  rbind(mean2, sd2)))) %>%
-  as.data.frame() %>%
-  mutate(CV = sd1/mean1, Trait = row.names(.))
-
-
-HO_CV_plot <- ggplot(HO_CV) +
-  geom_point(aes(x = reorder(Trait, CV), y = CV)) +
-  scale_x_discrete(labels =c("LW", "LL", "RH", "CH", "IL", "RL", "BDM/S", "ADM/S")) +
-  theme_classic() +
-  theme(axis.title.x = element_blank())
-HO_CV_plot
-ggsave(filename = "./plots/HO_CV_plot.png", plot = CV_plot, 
-       width = 10, height = 6, units = "cm")
-
 
 #' ## HU Clustering
 
@@ -510,73 +456,6 @@ ggexport(p, filename = "./plots/Trait_bpca.png",
          width = 3000, height = 3000, res = 600)
 
 
-# Plots to show contribution of variables (traits) and characteristic of components
-
-# Store all pca explanation terms in var
-# Show the value below accompany with plots
-var <- get_pca_var(HU_ave_pca)
-
-# Percentage of explained variance by components
-# The value can be found from above, summary(HU_ave_pca): proportion of Variance
-fviz_eig(HU_ave_pca, addlabels = TRUE)
-
-# Correlation between variable and component or contribution of variables to component
-# This correlation value determine the information shared by variables and components.
-# In this way, this value determine the postion of variables in the biplot
-# Smaller values in the first 2 components means the variables is less important for the first 2 components
-
-# Real value
-var$coord
-
-# Position of the variables on a biplot
-fviz_pca_var(HU_ave_pca, col.var = "black")
-
-# Variables contribution to PC1, PC2 (another way of visualization)
-p1 <- fviz_contrib(HU_ave_pca, choice = "var", axes = 1)
-p2 <- fviz_contrib(HU_ave_pca, choice = "var", axes = 2)
-p3 <- fviz_contrib(HU_ave_pca, choice = "var", axes = c(1, 2))
-grid.arrange(p1, p2, p3, nrow = 1)
-
-
-# Quality of representation of components to variables or observation
-# This is denote by Cos2 (cosine square)
-# Cos2 indicates how well does the component explain variables or observation
-# In general the value of variable Cos2 has similar order to correlation between components and variables
-
-# value of component representation on each variable
-var$cos2
-
-# Plot the 1st and 2nd component representation on each variable
-fviz_cos2(HU_ave_pca, choice = "var", axes = c(1,2))
-
-# Plot the 1st and 2nd component representation on each observation
-fviz_cos2(HU_ave_pca, choice = "ind", axes = c(1,2))
-
-
-# Plot the pca biplot, use customize function based on fviz_pca_biplot
-
-# Input clusters from Kmean or PAM clustering
-# Decide how to present variable arrows
-# color_arrow = 1: color the variable arrows according to their contribution
-# color_arrow = 2: same color for all variable arrows
-
-# Show the 2 clusters from Kmean and PAM
-p1 <- ITV_pca_biplot(HU_ave_pca, HU_kmean_pam$k2, 2)
-p2 <- ITV_pca_biplot(HU_ave_pca, HU_kmean_pam$pam2, 2)
-grid.arrange(p1, p2, nrow = 1)
-
-# Show 3 cluster with variables contribution
-p1 <- ITV_pca_biplot(HU_ave_pca, HU_kmean_pam$k3, 1)
-p2 <- ITV_pca_biplot(HU_ave_pca, HU_kmean_pam$pam3, 1)
-grid.arrange(p1, p2, nrow = 1) # This code might cause error if the plots window is too small. Just increase it if needed.
-
-# Save the PCA plot colored by growth form. It's the same as k=2 kmeans clustering.
-ITV_pca_biplot(HU_ave_pca, HU_kmean_pam$abb, 2) +
-  theme(axis.title = element_text(size = 12),
-        axis.text = element_text(size = 11)) -> p
-ggexport(p, filename = "./plots/HU_pca_plot.png",
-         width = 3000, height = 3000, res = 600)
-
 #' Try the Jones fish approach. Put four traits in the PCA to see PC1 composition
 
 HU_ave1 %>%
@@ -617,25 +496,6 @@ HU_ave %>%
          Sed = (sed_mean - mean(sed_mean, na.rm = TRUE))/ sd(sed_mean, na.rm = TRUE), .keep = "unused") %>%
          mutate(ID = match(Location, unique(Location))) -> HU_GLM
 
-
-# Sediment are set to three categories + "0" for NA subtidal site
-#for(i in 1:nrow(HU_GLM)){
-#  if(HU_GLM$Gravel[i] > 20){
-#    HU_GLM$Sed[i] = 1
-#  } else if(HU_GLM$Sand[i] > 55){
-#    HU_GLM$Sed[i] = 2
-#  } else if(HU_GLM$Silt[i] > 50){
-#    HU_GLM$Sed[i] = 3
-#  } else if(HU_GLM$Clay[i] == 0){
-#    HU_GLM$Sed[i] = 0
-#  } else{
-#    HU_GLM$Sed[i] = 4
-#  }
-#}
-#HU_GLM$Sed = as.factor(HU_GLM$Sed)
-
-
-# 
 
 HU_GLM %>%
   dplyr::select(ADM_S:ILength) -> HU_box
@@ -688,142 +548,6 @@ HU_GLM$REI = scale(log(HU_ave$total_REI))[, 1]
 hist(HU_GLM$REI)
 
 #' After testing with the simulated data (Can be find in the end of this r script), started to work on real data using the similar model structure.\
-#' The stan model is adopted from Bayesian Data Analysis for Cognitive Science Chapter 19(https://vasishth.github.io/bayescogsci/book/ch-mixture.html).
-#' The main modification is changing the distribution family to two normal distribution.
-#' Non-exchangeable priors for intercepts are used to break the labeling degeneracy.
-
-# Real data, no explained variables
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = nrow(HU_GLM),
-  LW = HU_GLM$LWidth
-)
-
-
-LW_mix_mod <- cmdstan_model("./stan_file/mixture_regression_mu.stan")
-
-# Run MCMC using the 'sample' method from cmdstan
-LW_mix <- LW_mix_mod$sample(
-  data = dat_list,
-  chains = 4,
-  parallel_chains = 4,
-  iter_warmup = 6000,
-  iter_sampling = 2000,
-  adapt_delta = 0.97
-)
-
-#+ Pure mu output for leaf width
-# dashboard(LW_mix)
-precis(LW_mix, depth = 2)
-
-ss = HU_GLM$Sed
-ss[10] = 1.43
-ss[11] = 0.7
-ss[12] = 0.5
-ss[13] = 1.0
-ss[14] = 0.5
-ss[15] = 1.2
-ss[16] = 0.3
-ss[17] = 0.4
-ss[18] = 1.5
-ss[19] = 0.4
-# real data with rei variable
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = nrow(HU_GLM),
-  LW = HU_GLM$LWidth,
-  rei = ss)
-
-LW_mix_rei <- cmdstan_model("./stan_file/mixture_regression_rei.stan")
-# The model apply here uses the trick of non-exchangeable prior to break the labeling degeneracy
-LW_rei <- LW_mix_rei$sample(
-  data = dat_list,
-  chains = 4,
-  parallel_chains = 4,
-  iter_warmup = 10000,
-  iter_sampling = 2000,
-  adapt_delta = 0.99
-)
-
-LW_rei$diagnostic_summary()
-# trace plot
-
-LW_rei$draws() %>% mcmc_trace()
-
-precis(LW_rei, depth = 2)
-
-# real data with de, rei variable
-dat_list <- list(
-  K = 2, # number of mixture component
-  V = 2, # number of covariates
-  N = nrow(HU_GLM),
-  LW = HU_GLM$LWidth,
-  CO = matrix(c(HU_GLM$Depth, HU_GLM$Air), ncol = 2)
-)
-
-LW_mix_2var <- cmdstan_model("./stan_file/mixture_sumtozero.stan")
-
-# Run MCMC using the 'sample' method from cmdstan
-LW_2var <- LW_mix_2var$sample(
-  data = dat_list,
-  chains = 4,
-  parallel_chains = 4,
-  iter_warmup = 10000,
-  iter_sampling = 2000,
-  adapt_delta = 0.99
-)
-
-LW_2var$diagnostic_summary()
-# trace plot
-
-LW_2var$draws() %>% mcmc_trace()
-
-# dashboard(LW_mix_2var)
-precis(LW_2var, depth = 3)
-
-LW_2var$draws(format = "df")
-bayesplot::mcmc_scatter(LW_2var$draws(c("alpha[1]", "alpha[2]")), alpha = 0.3)
-
-
-# model only put sediment and impute missing value
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = nrow(HU_GLM),
-  LW = HU_GLM$LWidth,
-  sed = HU_GLM %>%
-    mutate(across(everything(), ~ifelse(is.na(.), 999, .))) %>%
-    dplyr::select(Sed) %>%
-    unlist(), # stan will not accept NAs so using 999 as placeholder.
-  Sed_missidx = c(1:nrow(HU_GLM))[is.na(HU_GLM$Sed) == TRUE]
-)
-
-LW_mix_sed <- cmdstan_model("./stan_file/mixture_sed.stan")
-
-# Run MCMC using the 'sample' method from cmdstan
-LW_sed <- LW_mix_sed$sample(
-  data = dat_list,
-  chains = 4,
-  parallel_chains = 4,
-  iter_warmup = 10000,
-  iter_sampling = 2000,
-  adapt_delta = 0.99,
-  max_treedepth = 15,
-  save_warmup = TRUE
-)
-
-LW_sed$diagnostic_summary()
-# trace plot
-
-LW_sed$draws() %>% mcmc_trace()
-
-precis(LW_sed, depth = 3)
-
-#' In general, the mixture model with explain variable is really hard for the MCMC to walk around the posterior space
-#' Change to pure mu model to find the mixing proportion first
-#' Here I want to put all traits in the model and see how is the clustering proportion that the model will estimate.
-#' The model is modify from this one: https://discourse.mc-stan.org/t/mixture-models/17721/2
-#' The correlation matrix (quad_form_diag) is taken from rethinking book for easier understanding.
-#' The original approach is also retain in lines with //
 
 #+ Multivariate model without explained variables
 #### Multivariate mixture and Multivariate ####
@@ -853,17 +577,6 @@ MUL_mix <- MUL_mix_mod$sample(
   iter_sampling = 2000,
   adapt_delta = 0.97
 )
-
-# the rstan::stan suddenly have problem with running this model, go for cmdstan at above.
-#MUL_mix <- stan( file = "./stan_file/Multivariate_mixture.stan",
-#                         data=dat_list, chains=4, cores=4,
-#                        # iter = 8000,
-#                         #warmup = 6000,
-#                         control=list(adapt_delta=0.95,
-#                                      max_treedepth = 10))
-# This stan code can be easily change to Mixture multivariate lognormal regression by changing log(y[N]) in the likelihood section and changing positive_ordered to ordered (log(mean) can be negative).
-# This is helpful to keep simulation become all positive.
-# However, this will lead to the estimation become a log normal distribution which is generally skew.
 
 # saveRDS(MUL_mix, file = "./models/Multivariate_mixture.Rds")
 MUL_mix = readRDS(file = "./models/Multivariate_mixture.Rds")
@@ -1156,7 +869,7 @@ qqplot(m.wlw2.pred, HUW$LWidth)
 # m.wlw2: abar + z[ID] * sigma_a + bD * De + bRei * Rei + bS * Sed
 
 #  Control all variables except mean sediment size
-S_seq = seq(-1, 2.5, length.out = 50)
+S_seq = seq(-1.3, 2.5, length.out = 50)
 S_seq * sd(HU_ave$sed_mean,na.rm = TRUE) + mean(HU_ave$sed_mean, na.rm = TRUE) -> S_org
 
 post <- extract.samples(m.nlw2)
@@ -1199,9 +912,10 @@ data.frame(LW = c(colMeans(N_lw), colMeans(W_lw)),
            Abb = c(rep("HUN", 50), rep("HUW", 50))) %>%
   ggplot() +
   geom_line(aes(x = Sed, y = LW, color = Abb), linewidth = 2) +
+  geom_point(aes(x = sed_mean, y = LWidth, color = abb), data = HU_ave, size = 2) +
   geom_ribbon(aes(x = Sed, ymin = Low, ymax = High, color = Abb), , linetype = 2, alpha = 0.1) +
   scale_color_manual(values = c("#009E73", "#E69F00")) +
-  labs(y = "Simulated leaf width (mm)",
+  labs(y = "Leaf width (mm)",
        x = expression(paste("Mean sediment size (", mu, "m)")),
        color = "Growth form") + 
   theme_classic() -> LW_sed
@@ -1346,7 +1060,7 @@ qqplot(m.wrd2.pred, HUW$Rdia)
 # m.wrd2: abar + z[ID] * sigma_a + bRei * Rei + bD * De + bS * Sed
 
 #  Control all variables except mean sediment size
-S_seq = seq(-1, 2.5, length.out = 50)
+S_seq = seq(-1.3, 2.5, length.out = 50)
 S_seq * sd(HU_ave$sed_mean,na.rm = TRUE) + mean(HU_ave$sed_mean, na.rm = TRUE) -> S_org
 
 post <- extract.samples(m.nrd2)
@@ -1388,9 +1102,10 @@ data.frame(Rd = c(colMeans(N_rd),colMeans(W_rd)),
            Abb = c(rep("HUN", 50), rep("HUW", 50))) %>%
   ggplot() +
   geom_line(aes(x = Sed, y = Rd, color = Abb), linewidth = 2) +
+  geom_point(aes(x = sed_mean, y = Rdia, color = abb), data = HU_ave, size = 2) +
   geom_ribbon(aes(x = Sed, ymin = Low, ymax = High, color = Abb), , linetype = 2, alpha = 0.1) +
   scale_color_manual(values = c("#009E73", "#E69F00")) +
-  labs(y = "Simulated Rhizome diameter (mm)",
+  labs(y = "Rhizome diameter (mm)",
        x = expression(paste("Mean sediment size (", mu, "m)")),
        color = "Growth form") + 
   theme_classic() -> RD_sed
@@ -1851,9 +1566,9 @@ ggplot(PC1_sim_plot) +
   theme(legend.position = "none",
         axis.text.x = element_text(size = 10),
         axis.text.y = element_text(size = 11),
-        axis.title = element_text(size = 12)) -> aa
-aa
-aa %>% ggexport(filename = "./plots/Biomassindex.png",
+        axis.title = element_text(size = 12)) -> Fishbio
+
+Fishbio %>% ggexport(filename = "./plots/Biomassindex.png",
            width = 3000, height = 2500, res = 600)
 
 #' Blue carbon represented by three traits
@@ -1935,15 +1650,15 @@ ggplot(car_meadow_plot) +
   scale_color_manual(values = colgra(5)) +
   scale_fill_manual(values = colgra(5)) + 
   theme_classic() +
-  labs(x = "Carbon sequestration 
+  labs(x = "Carbon storage 
        (log transformed)",
        y = "") +
   theme(legend.position = "none",
         axis.text.x = element_text(size = 10),
         axis.text.y = element_text(size = 11),
-        axis.title = element_text(size = 12)) -> bb
-bb
-bb %>% ggexport(filename = "./plots/Bluecarbon.png",
+        axis.title = element_text(size = 12)) -> Carbon
+
+Carbon %>% ggexport(filename = "./plots/Bluecarbon.png",
                 width = 3000, height = 2500, res = 600)
 
 
@@ -2232,117 +1947,138 @@ dashboard(LW_mix_cat)
 precis(LW_mix_cat, depth = 2)
 
 
+#' The stan model is adopted from Bayesian Data Analysis for Cognitive Science Chapter 19(https://vasishth.github.io/bayescogsci/book/ch-mixture.html).
+#' The main modification is changing the distribution family to two normal distribution.
+#' Non-exchangeable priors for intercepts are used to break the labeling degeneracy.
 
-
-a <- 3.5 # average morning wait time
-bgood <- (-1) # average difference afternoon wait time for good cafe
-bbad <- (1) # average difference afternoon wait time for bad cafe
-sigma_a <- 1 # std dev in intercepts
-sigma_b <- 0.5 # std dev in slopes
-rho <- (-0.7) # correlation between intercepts and slopes
-
-Mugood <- c( a , bgood )
-Mubad <- c(a, bbad)
-cov_ab <- sigma_a*sigma_b*rho
-Sigma <- matrix( c(sigma_a^2,cov_ab,cov_ab,sigma_b^2) , ncol=2 )
-
-sigmas <- c(sigma_a,sigma_b) # standard deviations
-Rho <- matrix( c(1,rho,rho,1) , nrow=2 ) # correlation matrix
-Sigma <- diag(sigmas) %*% Rho %*% diag(sigmas)
-
-N_cafes <- 20
-
-
-set.seed(5) # used to replicate example
-vary_effectsgood <- mvrnorm( N_cafes , Mugood , Sigma )
-vary_effectsbad <- mvrnorm( N_cafes , Mubad , Sigma )
-
-a_cafe <- c(vary_effectsgood[1:10,1], vary_effectsbad[1:10,1])
-b_cafegood <- vary_effectsgood[1:10,2]
-b_cafebad <- vary_effectsbad[1:10, 2]
-
-set.seed(22)
-N_visits <- 10
-goodbad <- rep(c(5, -5), each = 100)
-afternoon <- rep(0:1,N_visits*N_cafes/2)
-cafe_id <- rep( 1:N_cafes , each=N_visits )
-mu <- c((a_cafe[cafe_id] + b_cafegood[cafe_id]*afternoon)[1:100],  (a_cafe[cafe_id] + b_cafebad[cafe_id]*afternoon)[1:100])
-sigma <- 0.5 # std dev within cafes
-wait <- rnorm( N_visits*N_cafes , mu , sigma )
-d <- data.frame( cafe=cafe_id , afternoon=afternoon , wait=wait )
-
-
-
-set.seed(867530)
-m14.1 <- ulam(
-  alist(
-    wait ~ normal( mu , sigma ),
-    mu <- a_cafe[cafe] + b_cafe[cafe]*afternoon,
-    c(a_cafe,b_cafe)[cafe] ~ multi_normal( c(a,b) , Rho , sigma_cafe ),
-    a ~ normal(5,2),
-    b ~ normal(-1,0.5),
-    sigma_cafe ~ exponential(1),
-    sigma ~ exponential(1),
-    Rho ~ lkj_corr(2)
-  ) , data=d , chains=4 , cores=4 )
-precis(m14.1, depth = 3)
-rethinking::stancode(m14.1)
-
-set.seed(73)
-N <- 500
-U_sim <- rnorm( N )
-Q_sim <- sample( 1:4 , size=N , replace=TRUE )
-E_sim <- rnorm( N , U_sim + Q_sim )
-W_sim <- rnorm( N , U_sim + 0*E_sim )
-dat_sim <- list(
-  W=scale(W_sim) ,
-  E=scale(E_sim) ,
-  Q=scale(Q_sim))
-
-m14.6 <- ulam(
-  alist(
-    c(W,E) ~ multi_normal( c(muW,muE) , Rho , Sigma ),
-    muW <- aW + bEW*E,
-    muE <- aE + bQE*Q,
-    c(aW,aE) ~ normal( 0 , 0.2 ),
-    c(bEW,bQE) ~ normal( 0 , 0.5 ),
-    Rho ~ lkj_corr( 2 ),
-    Sigma ~ exponential( 1 )
-  ), data=dat_sim , chains=4 , cores=4 )
-
-precis( m14.6 , depth=3 )
-rethinking::stancode(m14.6)
-
-data(KosterLeckie)
-kl_data <- list(
-                 N = nrow(kl_dyads),
-                 N_households = max(kl_dyads$hidB),
-                 did = kl_dyads$did,
-                 hidA = kl_dyads$hidA,
-                 hidB = kl_dyads$hidB,
-                 giftsAB = kl_dyads$giftsAB,
-                 giftsBA = kl_dyads$giftsBA
+# Real data, no explained variables
+dat_list <- list(
+  K = 2, # number of mixture component
+  N = nrow(HU_GLM),
+  LW = HU_GLM$LWidth
 )
 
-m14.7 <- ulam(
-  alist(
-    giftsAB ~ poisson( lambdaAB ),
-    giftsBA ~ poisson( lambdaBA ),
-    log(lambdaAB) <- a + gr[hidA,1] + gr[hidB,2] + d[did,1] ,
-    log(lambdaBA) <- a + gr[hidB,1] + gr[hidA,2] + d[did,2] ,
-    a ~ normal(0,1),
-    ## gr matrix of varying effects
-    vector[2]:gr[N_households] ~ multi_normal(0,Rho_gr,sigma_gr),
-    Rho_gr ~ lkj_corr(4),
-    sigma_gr ~ exponential(1),
-    ## dyad effects
-    transpars> matrix[N,2]:d <-
-      compose_noncentered( rep_vector(sigma_d,2) , L_Rho_d , z ),
-    matrix[2,N]:z ~ normal( 0 , 1 ),
-    cholesky_factor_corr[2]:L_Rho_d ~ lkj_corr_cholesky( 8 ),
-    sigma_d ~ exponential(1),
-    ## compute correlation matrix for dyads
-    gq> matrix[2,2]:Rho_d <<- Chol_to_Corr( L_Rho_d )
-  ), data=kl_data , chains=4 , cores=4 , iter=2000 )
+LW_mix_mod <- cmdstan_model("./stan_file/mixture_regression_mu.stan")
 
-stancode(m14.7)
+# Run MCMC using the 'sample' method from cmdstan
+LW_mix <- LW_mix_mod$sample(
+  data = dat_list,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 6000,
+  iter_sampling = 2000,
+  adapt_delta = 0.97
+)
+
+#+ Pure mu output for leaf width
+# dashboard(LW_mix)
+precis(LW_mix, depth = 2)
+
+ss = HU_GLM$Sed
+ss[10] = 1.43
+ss[11] = 0.7
+ss[12] = 0.5
+ss[13] = 1.0
+ss[14] = 0.5
+ss[15] = 1.2
+ss[16] = 0.3
+ss[17] = 0.4
+ss[18] = 1.5
+ss[19] = 0.4
+# real data with rei variable
+dat_list <- list(
+  K = 2, # number of mixture component
+  N = nrow(HU_GLM),
+  LW = HU_GLM$LWidth,
+  rei = ss)
+
+LW_mix_rei <- cmdstan_model("./stan_file/mixture_regression_rei.stan")
+# The model apply here uses the trick of non-exchangeable prior to break the labeling degeneracy
+LW_rei <- LW_mix_rei$sample(
+  data = dat_list,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 10000,
+  iter_sampling = 2000,
+  adapt_delta = 0.99
+)
+
+LW_rei$diagnostic_summary()
+# trace plot
+
+LW_rei$draws() %>% mcmc_trace()
+
+precis(LW_rei, depth = 2)
+
+# real data with de, rei variable
+dat_list <- list(
+  K = 2, # number of mixture component
+  V = 2, # number of covariates
+  N = nrow(HU_GLM),
+  LW = HU_GLM$LWidth,
+  CO = matrix(c(HU_GLM$Depth, HU_GLM$Air), ncol = 2)
+)
+
+LW_mix_2var <- cmdstan_model("./stan_file/mixture_sumtozero.stan")
+
+# Run MCMC using the 'sample' method from cmdstan
+LW_2var <- LW_mix_2var$sample(
+  data = dat_list,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 10000,
+  iter_sampling = 2000,
+  adapt_delta = 0.99
+)
+
+LW_2var$diagnostic_summary()
+# trace plot
+
+LW_2var$draws() %>% mcmc_trace()
+
+# dashboard(LW_mix_2var)
+precis(LW_2var, depth = 3)
+
+LW_2var$draws(format = "df")
+bayesplot::mcmc_scatter(LW_2var$draws(c("alpha[1]", "alpha[2]")), alpha = 0.3)
+
+
+# model only put sediment and impute missing value
+dat_list <- list(
+  K = 2, # number of mixture component
+  N = nrow(HU_GLM),
+  LW = HU_GLM$LWidth,
+  sed = HU_GLM %>%
+    mutate(across(everything(), ~ifelse(is.na(.), 999, .))) %>%
+    dplyr::select(Sed) %>%
+    unlist(), # stan will not accept NAs so using 999 as placeholder.
+  Sed_missidx = c(1:nrow(HU_GLM))[is.na(HU_GLM$Sed) == TRUE]
+)
+
+LW_mix_sed <- cmdstan_model("./stan_file/mixture_sed.stan")
+
+# Run MCMC using the 'sample' method from cmdstan
+LW_sed <- LW_mix_sed$sample(
+  data = dat_list,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 10000,
+  iter_sampling = 2000,
+  adapt_delta = 0.99,
+  max_treedepth = 15,
+  save_warmup = TRUE
+)
+
+LW_sed$diagnostic_summary()
+# trace plot
+
+LW_sed$draws() %>% mcmc_trace()
+
+precis(LW_sed, depth = 3)
+
+#' In general, the mixture model with explain variable is really hard for the MCMC to walk around the posterior space
+#' Change to pure mu model to find the mixing proportion first
+#' Here I want to put all traits in the model and see how is the clustering proportion that the model will estimate.
+#' The model is modify from this one: https://discourse.mc-stan.org/t/mixture-models/17721/2
+#' The correlation matrix (quad_form_diag) is taken from rethinking book for easier understanding.
+#' The original approach is also retain in lines with //
