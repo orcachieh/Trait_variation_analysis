@@ -352,14 +352,14 @@ HU_env_pca <- pcaMethods::pca(HU_env[, -c(1, 2)], method = "bpca", scale = "uv",
 summary(HU_env_pca)
 
 # loading for each covariates
-loadings <- as.data.frame(loadings(HU_env_pca)) %>%
+loadings <- as.data.frame(pcaMethods::loadings(HU_env_pca)) %>%
   mutate(x0 = rep(0, nrow(.)),
          y0 = rep(0, nrow(.)))
 # location for each sample
 scores <- as.data.frame(pcaMethods::scores(HU_env_pca)) %>% 
   mutate(abb = HU_kmean_pam$abb)
 ## Get the estimated complete observations
-cObs <- completeObs(HU_env_pca)
+cObs <- pcaMethods::completeObs(HU_env_pca)
 
 # Create a env_bpca plot
 ggplot() +
@@ -409,14 +409,14 @@ HU_trait_pca <- pcaMethods::pca(HU_ave1[, -c(1, 2)], method = "bpca", scale = "u
 summary(HU_trait_pca)
 
 # loading for each covariates
-loadings <- as.data.frame(loadings(HU_trait_pca)) %>%
+loadings <- as.data.frame(pcaMethods::loadings(HU_trait_pca)) %>%
   mutate(x0 = rep(0, nrow(.)),
          y0 = rep(0, nrow(.)))
 # location for each sample
 scores <- as.data.frame(pcaMethods::scores(HU_trait_pca)) %>% 
   mutate(abb = HU_kmean_pam$abb)
 ## Get the estimated complete observations
-cObs <- completeObs(HU_trait_pca)
+cObs <- pcaMethods::completeObs(HU_trait_pca)
 
 # Create a env_bpca plot
 ggplot() +
@@ -427,11 +427,11 @@ ggplot() +
   geom_text_repel(data = loadings, aes(x = PC1, y = PC2, 
                                        label = c("ADM_S",
                                                  "BDM_S",
-                                                 "CanopyH",
+                                                 "Canopy H.",
                                                  "Leaf length",
-                                                 "Leaf Width",
-                                                 "Root Length",
-                                                 "Rhiozme D",
+                                                 "Leaf width",
+                                                 "Root length",
+                                                 "Rhiozme D.",
                                                  "Internode distance")),
                   color = "black", size = 3.5,
                   position = position_nudge_center(0.2, 0.1, 0, 0)) +
@@ -456,7 +456,8 @@ ggexport(p, filename = "./plots/Trait_bpca.png",
          width = 3000, height = 3000, res = 600)
 
 
-#' Try the Jones fish approach. Put four traits in the PCA to see PC1 composition
+# Jones fish approach. Put four traits in the PCA to see PC1 composition.
+# This is used in Fish biomass section below
 
 HU_ave1 %>%
   dplyr::select(LLength, LWidth, CanopyH, ADM_S) -> HU_fish
@@ -465,8 +466,6 @@ HU_fish_pca <- pcaMethods::pca(HU_fish, method = "bpca", scale = "uv", center = 
 
 summary(HU_fish_pca)
 
-# loading for each covariates
-loadings <- as.data.frame(loadings(HU_fish_pca))
 
 #' ## HU GLMM
 #' Work on GLMM. Perform following steps:\
@@ -615,7 +614,7 @@ data.frame(NLW = rmvnorm(10000, c(mix_coef[3, 1], mix_coef[4, 1]),
   scale_fill_manual(values = c("#009E73", "#E69F00")) +
   scale_color_manual(values = c("#009E73", "#E69F00"), guide = "none") +
   theme_classic() +
-  labs(x = "Leaf Width (mm)", y = "Density", fill = "Growth form") +
+  labs(x = "Leaf width (mm)", y = "Density", fill = "Growth form") +
   xlim(0, 5.2) -> LW_est
 LW_est
 ggsave(LW_est, filename = "./plots/LW_estimated_density.png",
@@ -635,7 +634,7 @@ data.frame(NLW = rmvnorm(10000, c(mix_coef[3, 1], mix_coef[4, 1]),
   scale_fill_manual(values = c("#009E73", "#E69F00")) +
   scale_color_manual(values = c("#009E73", "#E69F00"), guide = "none") +
   theme_classic() +
-  labs(x = "Rhizome Diameter (mm)", y = "Density", fill = "Growth form") +
+  labs(x = "Rhizome diameter (mm)", y = "Density", fill = "Growth form") +
   xlim(0, 3) -> RD_est
 RD_est
 ggsave(RD_est, filename = "./plots/RD_estimated_density.png",
@@ -1660,425 +1659,3 @@ ggplot(car_meadow_plot) +
 
 Carbon %>% ggexport(filename = "./plots/Bluecarbon.png",
                 width = 3000, height = 2500, res = 600)
-
-
-#+ Exploring mixture model with simulated data and Extra example not run, eval = FALSE, include = FALSE
-#### Not run simulation and example ####
-
-
-#' Before run the model with real data, start with simulated data set.
-
-#+ Simulated data, comments = "", warnings = FALSE
-
-set.seed(1429850)
-N = 100
-# Simulate two types of depth
-de <- sample(c(4, 5, 3), N, replace = TRUE)
-# Mean leaf width is depends on the depth
-z <- rbern(n = N, prob = 0.4)
-
-lw <- if_else(z == 1,
-              rnorm(N,
-                    mean = 5 + 4 * de,
-                    sd = 1),
-              rnorm(N, 
-                    mean = 1 + 0.8 *de,
-                    sd = 2))
-
-# Leaf width data show 2 set of values according to their means. The proportion is 4:6
-
-#+ Pure mu model, results = "hide", warning = FALSE, message = FALSE, comment = ""
-# First run a model without explained variable (de)
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = length(lw),
-  LW = lw
-)
-
-LWM <- cstan( file = "./stan_file/mixture_regression_mu.stan",
-              data=dat_list, chains=4, cores=4,
-              iter = 4000,
-              warmup = 3000,
-              control=list(adapt_delta=0.95,
-                           max_treedepth = 10))
-#+ Pure mu output
-dashboard(LWM)
-precis(LWM, depth = 2)
-# "theta" is mixing proportion. The estimation is really close to true value (4:6)
-# "sigma" is standard deviation of each group of the data. Less precise than theta estimation. (group[1] is set to 2. group[2]is set to 1). If increase the standard deviation in the simulating process, the model estimation will deviate from the real data more.
-
-#+ Explained variables included, results = "hide", warning = FALSE, message = FALSE, comment = ""
-# This model include the explained variable (de)
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = length(lw),
-  LW = lw,
-  de = de
-)
-
-LW_mix_sim_test <- cstan( file = "./stan_file/mixture_regression_simple_test.stan",
-                          data=dat_list, chains=4, cores=4,
-                          iter = 10000,
-                          warmup = 9000,
-                          control=list(adapt_delta=0.95,
-                                       max_treedepth = 10))
-#+ Explained variables included output
-dashboard(LW_mix_sim_test)
-precis(LW_mix_sim_test, depth = 2)
-
-# Theta, sigma, and mu are still doing well in this model.
-# The coefficient (b = 2 or 5) used to determine mu in the simulation did not pick up by the model well enough. Need a bit more work on model structure,
-
-# Simulate Leaf width depends on 2 explained variables
-N <- 200
-
-de <- c(rnorm(200*0.3, 1, 1), rnorm(200*0.7, 5, 1))
-rei <- c(rnorm(200*0.3, 5, 1), rnorm(200*0.7, 2, 1))
-
-# Parameters true values:
-alpha <- 1
-bde1 <- 0.05
-brei1 <- 0.3
-sigma1 <- 0.4
-sigma2 <- 0.5
-gamma <- 5.8
-bde2 <- 0.4
-brei2 <- 0.8
-
-z <- rbern(n = N, prob = 0.3)
-
-lw <- c(rnorm(N*0.3, mean = alpha + bde1 * mean(de[1:60]) + brei1 * mean(rei[1:60]), sd = sigma1),
-        rnorm(N*0.7, mean = gamma + bde2 * mean(de[61:200]) + brei2 * mean(rei[61:200]), sd = sigma2))
-
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = length(lw),
-  LW = lw
-)
-
-LW_mix_mu_test <- cstan( file = "./stan_file/mixture_regression_mu.stan",
-                         data=dat_list, chains=4, cores=4,
-                         iter = 4000,
-                         warmup = 3500,
-                         control=list(adapt_delta=0.95,
-                                      max_treedepth = 10))
-#+ Pure mu output
-dashboard(LW_mix_mu_test)
-precis(LW_mix_mu_test, depth = 2)
-
-# This model include 2 explained variable (de and rei)
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = length(lw),
-  LW = lw,
-  de = de,
-  rei = rei
-)
-
-LW_mix_2_test <- cstan( file = "./stan_file/mixture_regression_2var.stan",
-                        data=dat_list, chains=4, cores=4,
-                        iter = 2000,
-                        warmup = 1500,
-                        control=list(adapt_delta=0.95,
-                                     max_treedepth = 10))
-#+ Explained variables included output
-dashboard(LW_mix_2_test)
-precis(LW_mix_2_test, depth = 2)
-
-# Simulate Leaf width depends on 3 explained variables and one of them is ordered categorical variable
-N <- 200
-
-de <- sample(c(-1, -0.5, 0, 1, 0.5), N, replace = TRUE)
-rei <- sample(c(1, 3, 5, 7), N, replace = TRUE)
-air <- sample(c(1, 2, 3), N, replace = TRUE, prob = c(0.5, 0.2, 0.3))
-
-# Parameters true values:
-alpha <- 5.8
-bde1 <- 0.1
-brei1 <- 0.3
-bair1 <- 0.2
-sigma1 <- 0.4
-sigma2 <- 0.5
-gamma <- 3
-bde2 <- 0.4
-brei2 <- 0.8
-bair2 <- 0.5
-
-delta_j1 <- c(0, 0.2, 0.3, 0.5)
-delta_j2 <- c(0, 0.4, 0.2, 0.4)
-
-z <- rbern(n = N, prob = 0.3)
-
-lw = c(1:N)
-for(i in 1:N){
-  if(z[i] == 1 & air[i] == 1){
-    lw[i] = rnorm(1, mean = alpha + bde1 * de[i] + brei1 * rei[i] + bair1 *sum(delta_j1[1:2]), sd = sigma1)} else if(z[i] == 1 & air[i] == 2){
-      lw[i] = rnorm(1, mean = alpha + bde1 * de[i] + brei1 * rei[i] + bair1 *sum(delta_j1[1:3]), sd = sigma1)} else if(z[i] == 1 & air[i] == 3){
-        lw[i] = rnorm(1, mean = alpha + bde1 * de[i] + brei1 * rei[i] + bair1 *sum(delta_j1[1:4]), sd = sigma1)} else if(z[i] == 0 & air[i] == 1){
-          lw[i] = rnorm(1, mean = gamma + bde2 * de[i] + brei2 * rei[i] + bair2 *sum(delta_j2[1:2]), sd = sigma2)} else if(z[i] == 0 & air[i] == 1){
-            lw[i] = rnorm(1, mean = gamma + bde2 * de[i] + brei2 * rei[i] + bair2 *sum(delta_j2[1:2]), sd = sigma2)} else if(z[i] == 0 & air[i] == 2){
-              lw[i] = rnorm(1, mean = gamma + bde2 * de[i] + brei2 * rei[i] + bair2 *sum(delta_j2[1:3]), sd = sigma2)} else{
-                lw[i] = rnorm(1, mean = gamma + bde2 * de[i] + brei2 * rei[i] + bair2 *sum(delta_j2[1:4]), sd = sigma2)}
-}
-
-mean(lw[z == 1])
-mean(lw[z == 0])
-
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = length(lw),
-  LW = lw
-)
-
-LW_mix_mu_test <- cstan( file = "./stan_file/mixture_regression_mu.stan",
-                         data=dat_list, chains=4, cores=4,
-                         iter = 4000,
-                         warmup = 3000,
-                         control=list(adapt_delta=0.95,
-                                      max_treedepth = 10))
-#+ Pure mu output
-dashboard(LW_mix_mu_test)
-precis(LW_mix_mu_test, depth = 2)
-
-# This model include 3 explained variable (de, rei, and air)
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = length(lw),
-  LW = lw,
-  de = de,
-  rei = rei,
-  air = air,
-  pair1 = rep(2, 3), # Prior for ordered categories process
-  pair2 = rep(2, 3) # Prior for ordered categories process
-)
-
-LW_mix_cat_test <- cstan( file = "./stan_file/mixture_regression_cat_test.stan",
-                          data=dat_list, chains=4, cores=4,
-                          iter = 8000,
-                          warmup = 7500,
-                          control=list(adapt_delta=0.95,
-                                       max_treedepth = 10))
-#+ 3 Explained variables included output
-dashboard(LW_mix_cat_test)
-precis(LW_mix_cat_test, depth = 2)
-
-
-
-# brms on simulated data. surprisingly not doing too good
-priors <- c(
-  prior(normal(0, 7), Intercept, dpar = mu1),
-  prior(normal(4, 7), Intercept, dpar = mu2)
-)
-mix <- mixture(gaussian, gaussian)
-test_dat = data.frame(lw, de = rnorm(100))
-fit1_test <- brm(bf(lw ~ de), 
-                 test_dat,
-                 family = mix,
-                 prior = priors,
-                 iter = 1000,
-                 warmup = 500,
-                 chains = 3,
-                 cores = 3,
-                 control = list(adapt_delta = 0.95))
-
-update(fit1_test)
-summary(fit1_test)
-brms::stancode(fit1_test)
-
-preds <- fit1_test %>% posterior_predict(nasamples = 250, summary = FALSE)
-fit1_test.resids <- createDHARMa(simulatedResponse = t(preds),
-                                 observedResponse = lw,
-                                 fittedPredictedResponse = apply(preds, 2, median),
-                                 integerResponse = FALSE)
-fit1_test.resids %>% plot()
-fit1_test.resids %>% testDispersion()
-
-# example of ordered categorical explained variables from rethinking package
-
-data(Trolley)
-d <- Trolley
-
-edu_levels <- c( 6 , 1 , 8 , 4 , 7 , 2 , 5 , 3 )
-d$edu_new <- edu_levels[ d$edu ]
-
-dat <- list(
-  R = d$response ,
-  action = d$action,
-  intention = d$intention,
-  contact = d$contact,
-  E = as.integer( d$edu_new ), # edu_new as an index
-  alpha = rep( 2 , 7 ) ) # delta prior
-
-m12.6 <- ulam(
-  alist(
-    R ~ ordered_logistic( phi , kappa ),
-    phi <- bE*sum( delta_j[1:E] ) + bA*action + bI*intention + bC*contact,
-    kappa ~ normal( 0 , 1.5 ),
-    c(bA,bI,bC,bE) ~ normal( 0 , 1 ),
-    vector[8]: delta_j <<- append_row( 0 , delta ),
-    simplex[7]: delta ~ dirichlet( alpha )
-  ), data=dat , chains=4 , cores=4 )
-
-precis(m12.6, depth = 2)
-rethinking::stancode(m12.6)
-
-
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = nrow(HU_GLM),
-  LW = HU_GLM$Leafwidth,
-  D = HU_GLM$depth,
-  REI = as.numeric(scale(HU_GLM$total_REI)),
-  AIR = as.integer(HU_GLM$air_exposure+1),
-  alpha = rep(2, 4), # Prior for ordered categories process
-  GA = HU_GLM$Gravel,
-  SA = HU_GLM$Sand,
-  SI = HU_GLM$Silt,
-  CL = HU_GLM$Clay
-)
-
-LW_mix_cat <- stan( file = "./stan_file/mixture_regression.stan",
-                    data=dat_list, chains=4, cores=4,
-                    iter = 5000,
-                    warmup = 4000,
-                    control=list(adapt_delta=0.9,
-                                  max_treedepth = 14) )
-dashboard(LW_mix_cat)
-precis(LW_mix_cat, depth = 2)
-
-
-#' The stan model is adopted from Bayesian Data Analysis for Cognitive Science Chapter 19(https://vasishth.github.io/bayescogsci/book/ch-mixture.html).
-#' The main modification is changing the distribution family to two normal distribution.
-#' Non-exchangeable priors for intercepts are used to break the labeling degeneracy.
-
-# Real data, no explained variables
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = nrow(HU_GLM),
-  LW = HU_GLM$LWidth
-)
-
-LW_mix_mod <- cmdstan_model("./stan_file/mixture_regression_mu.stan")
-
-# Run MCMC using the 'sample' method from cmdstan
-LW_mix <- LW_mix_mod$sample(
-  data = dat_list,
-  chains = 4,
-  parallel_chains = 4,
-  iter_warmup = 6000,
-  iter_sampling = 2000,
-  adapt_delta = 0.97
-)
-
-#+ Pure mu output for leaf width
-# dashboard(LW_mix)
-precis(LW_mix, depth = 2)
-
-ss = HU_GLM$Sed
-ss[10] = 1.43
-ss[11] = 0.7
-ss[12] = 0.5
-ss[13] = 1.0
-ss[14] = 0.5
-ss[15] = 1.2
-ss[16] = 0.3
-ss[17] = 0.4
-ss[18] = 1.5
-ss[19] = 0.4
-# real data with rei variable
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = nrow(HU_GLM),
-  LW = HU_GLM$LWidth,
-  rei = ss)
-
-LW_mix_rei <- cmdstan_model("./stan_file/mixture_regression_rei.stan")
-# The model apply here uses the trick of non-exchangeable prior to break the labeling degeneracy
-LW_rei <- LW_mix_rei$sample(
-  data = dat_list,
-  chains = 4,
-  parallel_chains = 4,
-  iter_warmup = 10000,
-  iter_sampling = 2000,
-  adapt_delta = 0.99
-)
-
-LW_rei$diagnostic_summary()
-# trace plot
-
-LW_rei$draws() %>% mcmc_trace()
-
-precis(LW_rei, depth = 2)
-
-# real data with de, rei variable
-dat_list <- list(
-  K = 2, # number of mixture component
-  V = 2, # number of covariates
-  N = nrow(HU_GLM),
-  LW = HU_GLM$LWidth,
-  CO = matrix(c(HU_GLM$Depth, HU_GLM$Air), ncol = 2)
-)
-
-LW_mix_2var <- cmdstan_model("./stan_file/mixture_sumtozero.stan")
-
-# Run MCMC using the 'sample' method from cmdstan
-LW_2var <- LW_mix_2var$sample(
-  data = dat_list,
-  chains = 4,
-  parallel_chains = 4,
-  iter_warmup = 10000,
-  iter_sampling = 2000,
-  adapt_delta = 0.99
-)
-
-LW_2var$diagnostic_summary()
-# trace plot
-
-LW_2var$draws() %>% mcmc_trace()
-
-# dashboard(LW_mix_2var)
-precis(LW_2var, depth = 3)
-
-LW_2var$draws(format = "df")
-bayesplot::mcmc_scatter(LW_2var$draws(c("alpha[1]", "alpha[2]")), alpha = 0.3)
-
-
-# model only put sediment and impute missing value
-dat_list <- list(
-  K = 2, # number of mixture component
-  N = nrow(HU_GLM),
-  LW = HU_GLM$LWidth,
-  sed = HU_GLM %>%
-    mutate(across(everything(), ~ifelse(is.na(.), 999, .))) %>%
-    dplyr::select(Sed) %>%
-    unlist(), # stan will not accept NAs so using 999 as placeholder.
-  Sed_missidx = c(1:nrow(HU_GLM))[is.na(HU_GLM$Sed) == TRUE]
-)
-
-LW_mix_sed <- cmdstan_model("./stan_file/mixture_sed.stan")
-
-# Run MCMC using the 'sample' method from cmdstan
-LW_sed <- LW_mix_sed$sample(
-  data = dat_list,
-  chains = 4,
-  parallel_chains = 4,
-  iter_warmup = 10000,
-  iter_sampling = 2000,
-  adapt_delta = 0.99,
-  max_treedepth = 15,
-  save_warmup = TRUE
-)
-
-LW_sed$diagnostic_summary()
-# trace plot
-
-LW_sed$draws() %>% mcmc_trace()
-
-precis(LW_sed, depth = 3)
-
-#' In general, the mixture model with explain variable is really hard for the MCMC to walk around the posterior space
-#' Change to pure mu model to find the mixing proportion first
-#' Here I want to put all traits in the model and see how is the clustering proportion that the model will estimate.
-#' The model is modify from this one: https://discourse.mc-stan.org/t/mixture-models/17721/2
-#' The correlation matrix (quad_form_diag) is taken from rethinking book for easier understanding.
-#' The original approach is also retain in lines with //
